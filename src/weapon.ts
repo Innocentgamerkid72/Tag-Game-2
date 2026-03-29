@@ -24,10 +24,10 @@ interface WeaponDef {
 
 export const DEFS: Record<WeaponType, WeaponDef> = {
   blaster: {
-    name: "Blaster", color: 0xff6600, lightColor: 0xff8833,
-    size: 0.22, speed: 32, cooldown: 0.35, life: 3.0,
-    gravity: 0, hitForce: 22, hitForceY: 7,
-    splashRadius: 0, freezeSec: 0, pellets: 1, spread: 0,
+    name: "Laser Gun", color: 0xff6600, lightColor: 0xff8833,
+    size: 0, speed: 0, cooldown: 0.1, life: 0,
+    gravity: 0, hitForce: 40, hitForceY: 14,
+    splashRadius: 0, freezeSec: 2.0, pellets: 1, spread: 0,
   },
   rocket: {
     name: "Rocket", color: 0xff2200, lightColor: 0xff4400,
@@ -285,21 +285,24 @@ class Projectile {
     center: THREE.Vector3,
     freezeMap: Map<Controllable, number>,
   ) {
-    if (this._def.freezeSec > 0) {
-      e.setFrozen(true);
-      freezeMap.set(e, this._def.freezeSec);
-      return;
-    }
+    // Apply knockback first (works even if hitForce is 0)
     const push = new THREE.Vector3(
       e.position.x - center.x, 0, e.position.z - center.z,
     );
     const len = push.length();
     if (len > 0) push.divideScalar(len);
-    e.velocity.x    += push.x * this._def.hitForce;
-    e.velocity.z    += push.z * this._def.hitForce;
-    e.velocity.y     = Math.max(e.velocity.y, this._def.hitForceY);
-    e.knockbackTimer = 0.55;
-    e.tagImmunity    = Math.max(e.tagImmunity, 0.55);
+    if (this._def.hitForce > 0) {
+      e.velocity.x    += push.x * this._def.hitForce;
+      e.velocity.z    += push.z * this._def.hitForce;
+      e.velocity.y     = Math.max(e.velocity.y, this._def.hitForceY);
+      e.knockbackTimer = 0.55;
+      e.tagImmunity    = Math.max(e.tagImmunity, 0.55);
+    }
+    // Then stun/freeze if applicable
+    if (this._def.freezeSec > 0) {
+      e.setFrozen(true);
+      freezeMap.set(e, this._def.freezeSec);
+    }
   }
 
   forceRemove(scene: THREE.Scene) { scene.remove(this.mesh); this.done = true; }
@@ -638,6 +641,108 @@ class Flashbang {
   }
 }
 
+// ── Laser (hitscan) ───────────────────────────────────────────────────────────
+class Laser {
+  private readonly _beam:  THREE.Mesh;
+  private readonly _light: THREE.PointLight;
+  private _life = 0.12;
+  done = false;
+
+  constructor(
+    private readonly _scene: THREE.Scene,
+    origin: THREE.Vector3,
+    direction: THREE.Vector3,
+    def: WeaponDef,
+    shooter: Controllable,
+    entities: Controllable[],
+    colliders: THREE.Box3[],
+    walls: THREE.Box3[],
+    freezeMap: Map<Controllable, number>,
+  ) {
+    const dir = direction.clone().normalize();
+    const ray = new THREE.Ray(origin, dir);
+
+    // Max distance blocked by geometry
+    let maxDist = 80;
+    const boxHit = new THREE.Vector3();
+    for (const box of [...colliders, ...walls]) {
+      if (ray.intersectBox(box, boxHit) !== null) {
+        const d = origin.distanceTo(boxHit);
+        if (d < maxDist) maxDist = d;
+      }
+    }
+
+    // Closest entity in beam path
+    const bodyCenter = (e: Controllable) =>
+      new THREE.Vector3(e.position.x, e.position.y + 0.9, e.position.z);
+    let hitEntity: Controllable | null = null;
+    let hitDist = maxDist;
+    const closestPt = new THREE.Vector3();
+
+    for (const e of entities) {
+      if ((e as unknown) === (shooter as unknown) || e.isEliminated) continue;
+      ray.closestPointToPoint(bodyCenter(e), closestPt);
+      if (closestPt.distanceTo(bodyCenter(e)) > 0.65) continue;
+      const d = origin.distanceTo(closestPt);
+      if (d < hitDist) { hitDist = d; hitEntity = e; }
+    }
+
+    if (hitEntity) {
+      const push = new THREE.Vector3(
+        hitEntity.position.x - origin.x, 0, hitEntity.position.z - origin.z,
+      );
+      if (push.length() > 0) push.normalize();
+      if (def.hitForce > 0) {
+        hitEntity.velocity.x    += push.x * def.hitForce;
+        hitEntity.velocity.z    += push.z * def.hitForce;
+        hitEntity.velocity.y     = Math.max(hitEntity.velocity.y, def.hitForceY);
+        hitEntity.knockbackTimer = 0.55;
+        hitEntity.tagImmunity    = Math.max(hitEntity.tagImmunity, 0.55);
+      }
+      if (def.freezeSec > 0) {
+        hitEntity.setFrozen(true);
+        freezeMap.set(hitEntity, def.freezeSec);
+      }
+    }
+
+    // Visual beam: cylinder from origin to impact
+    const beamLength = Math.max(0.1, hitDist);
+    const mid = origin.clone().addScaledVector(dir, beamLength * 0.5);
+
+    this._beam = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.025, 0.025, beamLength, 5),
+      new THREE.MeshBasicMaterial({ color: def.color, transparent: true, opacity: 1 }),
+    );
+    this._beam.position.copy(mid);
+    // CylinderGeometry is Y-up; rotate to align with direction
+    const up = new THREE.Vector3(0, 1, 0);
+    if (Math.abs(dir.dot(up)) < 0.9999) {
+      this._beam.quaternion.setFromUnitVectors(up, dir);
+    } else if (dir.y < 0) {
+      this._beam.rotation.z = Math.PI;
+    }
+    _scene.add(this._beam);
+
+    // Muzzle light at origin
+    this._light = new THREE.PointLight(def.lightColor, 5, 8);
+    this._light.position.copy(origin);
+    _scene.add(this._light);
+  }
+
+  update(dt: number) {
+    if (this.done) return;
+    this._life -= dt;
+    if (this._life <= 0) {
+      this._scene.remove(this._beam, this._light);
+      this.done = true;
+      return;
+    }
+    const fade = this._life / 0.12;
+    (this._beam.material as THREE.MeshBasicMaterial).opacity = fade;
+    this._light.intensity = 5 * fade;
+  }
+}
+
 // ── Weapon system ─────────────────────────────────────────────────────────────
 export class WeaponSystem {
   private _type:        WeaponType = "blaster";
@@ -646,9 +751,13 @@ export class WeaponSystem {
   private _explosions:  Explosion[] = [];
   private _bearTraps:   BearTrap[] = [];
   private _flashbangs:  Flashbang[] = [];
+  private _lasers:      Laser[] = [];
   private _cooldown     = 0;
   private _freezeMap:   Map<Controllable, number> = new Map();
   private _localPlayer: Controllable | null = null;
+  private _ctxEntities:  Controllable[]  = [];
+  private _ctxColliders: THREE.Box3[]    = [];
+  private _ctxWalls:     THREE.Box3[]    = [];
 
   flashIntensity = 0;   // 0–1; driven by flashbang detonation, decays each frame
 
@@ -660,6 +769,13 @@ export class WeaponSystem {
 
   /** Call once after the local player is created so traps know whose are visible. */
   setLocalPlayer(p: Controllable) { this._localPlayer = p; }
+
+  /** Call each frame before fire() so hitscan lasers can resolve hits. */
+  setContext(entities: Controllable[], colliders: THREE.Box3[], walls: THREE.Box3[]) {
+    this._ctxEntities  = entities;
+    this._ctxColliders = colliders;
+    this._ctxWalls     = walls;
+  }
 
   /** Fire a specific weapon type without affecting current weapon or cooldown.
    *  Used by the admin panel to shoot from bot/player positions. */
@@ -676,6 +792,13 @@ export class WeaponSystem {
       this._flashbangs.push(new Flashbang(scene, origin, direction, shooter, (intensity) => {
         this.flashIntensity = Math.max(this.flashIntensity, intensity);
       }));
+      return;
+    }
+    if (weaponType === "blaster") {
+      this._lasers.push(new Laser(
+        scene, origin, direction, def, shooter,
+        this._ctxEntities, this._ctxColliders, this._ctxWalls, this._freezeMap,
+      ));
       return;
     }
     if (def.pellets === 1) {
@@ -718,6 +841,15 @@ export class WeaponSystem {
       this._flashbangs.push(new Flashbang(scene, origin, direction, shooter, (intensity) => {
         this.flashIntensity = Math.max(this.flashIntensity, intensity);
       }));
+      this._cooldown = def.cooldown;
+      return;
+    }
+
+    if (this._type === "blaster") {
+      this._lasers.push(new Laser(
+        scene, origin, direction, def, shooter,
+        this._ctxEntities, this._ctxColliders, this._ctxWalls, this._freezeMap,
+      ));
       this._cooldown = def.cooldown;
       return;
     }
@@ -772,5 +904,8 @@ export class WeaponSystem {
 
     for (const fb of this._flashbangs) fb.update(dt, entities, colliders, groundY);
     this._flashbangs = this._flashbangs.filter(fb => !fb.done);
+
+    for (const l of this._lasers) l.update(dt);
+    this._lasers = this._lasers.filter(l => !l.done);
   }
 }

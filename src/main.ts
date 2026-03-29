@@ -408,6 +408,9 @@ function gameLoop() {
   // Weapons are active in Tomfoolery, when admin gave one, or when player is the hunter
   const weaponsActive = isTomfoolery || adminGiveUsedRound === roundManager.roundId || playerIsHunter;
 
+  // Provide current-frame context so hitscan weapons (laser) can resolve hits
+  weapon.setContext(allEntities, colliders, walls);
+
   if (weaponsActive) {
     if (playerIsHunter) {
       // Hunter: only beartrap (6) and flashbang (7) are available
