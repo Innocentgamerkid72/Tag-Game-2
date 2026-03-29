@@ -9,10 +9,6 @@ export class FallingPlatform {
   private readonly _collider:  THREE.Box3;
   private readonly _colliders: THREE.Box3[];
   private readonly _basePos:   THREE.Vector3;
-  private readonly _baseColor: number;
-  private readonly _halfW: number;
-  private readonly _halfD: number;
-
   private _state:     "idle" | "triggered" | "falling" = "idle";
   private _timer      = WARN_TIME;
   private _shakeAccum = 0;
@@ -27,9 +23,6 @@ export class FallingPlatform {
     add: (o: THREE.Object3D) => void,
     colliders: THREE.Box3[],
   ) {
-    this._baseColor = color;
-    this._halfW = w / 2;
-    this._halfD = d / 2;
     this._basePos = new THREE.Vector3(x, y + h / 2, z);
 
     this._mat  = new THREE.MeshLambertMaterial({ color });
