@@ -95,6 +95,7 @@ const loginError    = document.getElementById("login-error")!;
 const adminBtn   = document.getElementById("admin-btn")!;
 const adminPanel = document.getElementById("admin-panel")!;
 
+let gameStarted = false;
 let adminSpeedActive = false;
 let adminGiveUsedRound = -1;
 // Bot weapon assignments for the current round: botIndex → WeaponType
@@ -224,6 +225,7 @@ adminBtn.addEventListener("click", () => {
 
 function startGame(nickname: string) {
   loginOverlay.style.display = "none";
+  gameStarted = true;
   player.setName(nickname);
   const lower = nickname.toLowerCase();
   roundManager.isAdmin = lower.includes("innocent") || lower.includes("kid") || lower.includes("lawrence");
@@ -284,6 +286,11 @@ function gameLoop() {
   prevTime = now;
 
   input.flush();
+
+  if (!gameStarted) {
+    renderer.render(scene, thirdPersonCam.camera);
+    return;
+  }
 
   const map = roundManager.map;
   const colliders = map ? map.colliders : [];
