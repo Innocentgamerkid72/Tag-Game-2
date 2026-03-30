@@ -26,7 +26,7 @@ export const DEFS: Record<WeaponType, WeaponDef> = {
   blaster: {
     name: "Laser Gun", color: 0xff6600, lightColor: 0xff8833,
     size: 0, speed: 0, cooldown: 0.1, life: 0,
-    gravity: 0, hitForce: 40, hitForceY: 14,
+    gravity: 0, hitForce: 60, hitForceY: 20,
     splashRadius: 0, freezeSec: 2.0, pellets: 1, spread: 0,
   },
   rocket: {
