@@ -7,6 +7,9 @@ import { Controllable } from "./types";
 import { RoundManager } from "./roundManager";
 import { WeaponSystem, WEAPON_ORDER, DEFS } from "./weapon";
 import type { WeaponType } from "./weapon";
+import { NetworkManager } from "./network";
+import { RemotePlayer } from "./remotePlayer";
+import type { NetMsg } from "./network";
 
 // ── Renderer ──────────────────────────────────────────────────────────────────
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -43,6 +46,49 @@ const thirdPersonCam = new ThirdPersonCamera();
 const input = new InputHandler(renderer.domElement);
 const weapon = new WeaponSystem();
 weapon.setLocalPlayer(player as unknown as import("./types").Controllable);
+
+// ── Networking ────────────────────────────────────────────────────────────────
+const network = new NetworkManager();
+const remotePlayers = new Map<string, RemotePlayer>();
+
+const roomCodeEl = document.getElementById("room-code");
+if (roomCodeEl) {
+  const shareUrl = `${window.location.origin}${window.location.pathname}?room=${network.roomCode}`;
+  roomCodeEl.textContent = `🔗 ${shareUrl}`;
+  roomCodeEl.addEventListener("click", () => {
+    navigator.clipboard.writeText(shareUrl).catch(() => {});
+    roomCodeEl.textContent = "✓ Copied!";
+    setTimeout(() => { roomCodeEl.textContent = `🔗 ${shareUrl}`; }, 1500);
+  });
+}
+
+function handleNetMessage(msg: NetMsg) {
+  if (msg.type === "state") {
+    let rp = remotePlayers.get(msg.peerId);
+    if (!rp) {
+      rp = new RemotePlayer(scene, msg.peerId, msg.username);
+      remotePlayers.set(msg.peerId, rp);
+    }
+    rp.applyState(msg);
+    return;
+  }
+  if (msg.type === "tag") {
+    const tagger = remotePlayers.get(msg.taggerId);
+    const tagged  = remotePlayers.get(msg.taggedId);
+    tagger?.setIt(false);
+    tagged?.setIt(true);
+    if (msg.taggerId === network.peerId) (player as unknown as Controllable).setIt(false);
+    if (msg.taggedId  === network.peerId) (player as unknown as Controllable).setIt(true);
+    return;
+  }
+  if (msg.type === "leave") {
+    const rp = remotePlayers.get(msg.peerId);
+    if (rp) { rp.removeFromScene(scene); remotePlayers.delete(msg.peerId); }
+  }
+}
+
+network.connect(handleNetMessage);
+window.addEventListener("beforeunload", () => network.sendLeave());
 
 // ── HUD elements ─────────────────────────────────────────────────────────────
 const timerEl    = document.getElementById("round-timer")!;
@@ -97,6 +143,9 @@ const adminPanel = document.getElementById("admin-panel")!;
 
 let gameStarted = false;
 let adminSpeedActive = false;
+let localUsername = "";
+let _netTickAccum = 0;
+const NET_TICK = 1 / 20; // broadcast at 20 Hz
 let adminGiveUsedRound = -1;
 // Bot weapon assignments for the current round: botIndex → WeaponType
 const botGivenWeapons = new Map<number, WeaponType>();
@@ -224,6 +273,7 @@ adminBtn.addEventListener("click", () => {
 });
 
 function startGame(nickname: string) {
+  localUsername = nickname;
   loginOverlay.style.display = "none";
   gameStarted = true;
   player.setName(nickname);
@@ -303,10 +353,17 @@ function gameLoop() {
 
   player.update(dt, input, colliders, walls, boundary, map?.groundY ?? 0, map?.voidBoundary);
 
+  // Remove stale remote players (disconnected peers)
+  for (const [id, rp] of remotePlayers) {
+    if (rp.isStale) { rp.removeFromScene(scene); remotePlayers.delete(id); }
+    else rp.update(dt);
+  }
+
   // Build the full entity list before bot updates so bots can see the player
   const allEntities: Controllable[] = [
     player as unknown as Controllable,
     ...roundManager.bots as unknown as Controllable[],
+    ...[...remotePlayers.values()],
   ];
 
   for (const bot of roundManager.bots) {
@@ -457,7 +514,49 @@ function gameLoop() {
 
   weapon.update(dt, scene, player as unknown as Controllable, allEntities, colliders, walls, map?.groundY ?? 0);
 
+  // Snapshot isIt before round manager runs tag detection
+  const prevLocalIsIt = (player as unknown as Controllable).isIt;
+  const prevRemoteIsIt = new Map<string, boolean>();
+  for (const [id, rp] of remotePlayers) prevRemoteIsIt.set(id, rp.isIt);
+
   roundManager.update(dt, allEntities);
+
+  // Broadcast tag events when local round manager detects a tag involving a remote player
+  if (prevLocalIsIt && !(player as unknown as Controllable).isIt) {
+    // Local player was "it" and tagged someone — find the newly-it remote player
+    for (const [id, rp] of remotePlayers) {
+      if (!prevRemoteIsIt.get(id) && rp.isIt) {
+        network.sendTag(network.peerId, id);
+        break;
+      }
+    }
+  }
+  for (const [id, rp] of remotePlayers) {
+    const wasIt = prevRemoteIsIt.get(id) ?? false;
+    if (wasIt && !rp.isIt && !(player as unknown as Controllable).isIt && prevLocalIsIt === false
+        && (player as unknown as Controllable).isIt) {
+      // Remote was "it" and tagged local player
+      network.sendTag(id, network.peerId);
+    }
+  }
+
+  // Broadcast local player state at 20 Hz
+  if (gameStarted) {
+    _netTickAccum += dt;
+    if (_netTickAccum >= NET_TICK) {
+      _netTickAccum = 0;
+      const p = player as unknown as Controllable;
+      network.sendState({
+        username:    localUsername,
+        x: p.position.x, y: p.position.y, z: p.position.z,
+        vx: p.velocity.x, vy: p.velocity.y, vz: p.velocity.z,
+        yaw:         player.yaw,
+        isIt:        p.isIt,
+        isFrozen:    p.isFrozen,
+        isEliminated: p.isEliminated,
+      });
+    }
+  }
 
   // Admin speed boost applied after round manager resets speedBoost each frame
   if (adminSpeedActive && !player.isEliminated && !player.isFrozen) {
