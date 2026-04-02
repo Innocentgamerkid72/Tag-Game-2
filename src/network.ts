@@ -11,6 +11,12 @@ export type NetMsg =
 
 const ABLY_KEY = "CTFlEA.V1yraA:sxcJVgiYCm20Ts4jknPPnR3nr6rwN1P-EBOECxWt8FI";
 
+// Small status indicator shown in-game
+function setStatus(text: string, color = "#aaaaaa") {
+  const el = document.getElementById("net-status");
+  if (el) { el.textContent = text; el.style.color = color; }
+}
+
 // ── NetworkManager ────────────────────────────────────────────────────────────
 export class NetworkManager {
   readonly peerId:   string;
@@ -37,18 +43,28 @@ export class NetworkManager {
 
   connect(handler: (msg: NetMsg) => void) {
     this._handler = handler;
+    setStatus("Connecting…", "#ffcc44");
+
+    let ably: Realtime;
     try {
-      const ably = new Realtime({ key: ABLY_KEY, clientId: this.peerId });
-      this._channel = ably.channels.get(`tag-game-${this.roomCode}`);
-      this._channel.subscribe((msg: Message) => {
-        try {
-          const data = msg.data as NetMsg;
-          if (data.peerId !== this.peerId) this._handler?.(data);
-        } catch { /* ignore malformed */ }
-      });
-    } catch {
-      /* silently degrade to solo if Ably is unreachable */
+      ably = new Realtime({ key: ABLY_KEY, clientId: this.peerId });
+    } catch (e) {
+      setStatus(`Init error: ${e}`, "#ff4444");
+      return;
     }
+
+    ably.connection.on("connected", () => setStatus("Online ✓", "#44ff88"));
+    ably.connection.on("failed",    (err) => setStatus(`Failed: ${err?.reason?.message ?? err}`, "#ff4444"));
+    ably.connection.on("disconnected", () => setStatus("Disconnected", "#ff8844"));
+    ably.connection.on("suspended",    () => setStatus("Suspended", "#ff8844"));
+
+    this._channel = ably.channels.get(`tag-game-${this.roomCode}`);
+    this._channel.subscribe((msg: Message) => {
+      try {
+        const data = msg.data as NetMsg;
+        if (data.peerId !== this.peerId) this._handler?.(data);
+      } catch { /* ignore malformed */ }
+    });
   }
 
   sendState(s: Omit<NetMsg & { type: "state" }, "type" | "peerId">) {
