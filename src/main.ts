@@ -50,6 +50,7 @@ weapon.setLocalPlayer(player as unknown as import("./types").Controllable);
 // ── Networking ────────────────────────────────────────────────────────────────
 const network = new NetworkManager();
 const remotePlayers = new Map<string, RemotePlayer>();
+const knownPeers   = new Set<string>(); // all peer IDs seen this session
 
 const roomCodeEl = document.getElementById("room-code");
 if (roomCodeEl) {
@@ -64,6 +65,7 @@ if (roomCodeEl) {
 
 function handleNetMessage(msg: NetMsg) {
   if (msg.type === "state") {
+    knownPeers.add(msg.peerId);
     let rp = remotePlayers.get(msg.peerId);
     if (!rp) {
       rp = new RemotePlayer(scene, msg.peerId, msg.username);
@@ -73,15 +75,18 @@ function handleNetMessage(msg: NetMsg) {
     return;
   }
   if (msg.type === "tag") {
+    // Authoritative tag from network — update IT state directly
     const tagger = remotePlayers.get(msg.taggerId);
     const tagged  = remotePlayers.get(msg.taggedId);
     tagger?.setIt(false);
+    if (tagger) tagger.tagImmunity = 2;
     tagged?.setIt(true);
-    if (msg.taggerId === network.peerId) (player as unknown as Controllable).setIt(false);
+    if (msg.taggerId === network.peerId) { (player as unknown as Controllable).setIt(false); player.tagImmunity = 2; }
     if (msg.taggedId  === network.peerId) (player as unknown as Controllable).setIt(true);
     return;
   }
   if (msg.type === "leave") {
+    knownPeers.delete(msg.peerId);
     const rp = remotePlayers.get(msg.peerId);
     if (rp) { rp.removeFromScene(scene); remotePlayers.delete(msg.peerId); }
   }
@@ -359,15 +364,20 @@ function gameLoop() {
     else rp.update(dt);
   }
 
-  // Build the full entity list before bot updates so bots can see the player
-  const allEntities: Controllable[] = [
+  // Local entities only (bots stay local, remote players are separate)
+  const localEntities: Controllable[] = [
     player as unknown as Controllable,
     ...roundManager.bots as unknown as Controllable[],
+  ];
+
+  // Full entity list for weapons, platforms, rendering
+  const allEntities: Controllable[] = [
+    ...localEntities,
     ...[...remotePlayers.values()],
   ];
 
   for (const bot of roundManager.bots) {
-    bot.update(dt, colliders, walls, map ? map.teleporters : [], allEntities as unknown as { isIt: boolean; tagImmunity: number; isFrozen: boolean; position: THREE.Vector3 }[], map?.groundY ?? 0, map?.voidBoundary);
+    bot.update(dt, colliders, walls, map ? map.teleporters : [], localEntities as unknown as { isIt: boolean; tagImmunity: number; isFrozen: boolean; position: THREE.Vector3 }[], map?.groundY ?? 0, map?.voidBoundary);
   }
 
   // Detect new round — clear all given weapons so they don't carry over
@@ -379,6 +389,17 @@ function gameLoop() {
     hunterBotWeaponIdx.clear();
     prevPlayerIsHunter = false;
     weapon.setWeapon("blaster");
+
+    // Deterministic IT sync in multiplayer (not Tomfoolery — that mode sets everyone IT)
+    if (knownPeers.size > 0 && roundManager.mode.name !== "Tomfoolery") {
+      const allHumanIds = [network.peerId, ...knownPeers].sort();
+      const itPeerId    = allHumanIds[roundManager.roundId % allHumanIds.length];
+      const localIsIt   = itPeerId === network.peerId;
+      (player as unknown as Controllable).setIt(localIsIt);
+      // Ensure no bots are IT if a human player is assigned IT
+      for (const bot of roundManager.bots) (bot as unknown as Controllable).setIt(false);
+      for (const [id, rp] of remotePlayers) rp.setIt(id === itPeerId);
+    }
   }
 
   const isHunterMode     = roundManager.mode.name === "Hunter";
@@ -514,29 +535,26 @@ function gameLoop() {
 
   weapon.update(dt, scene, player as unknown as Controllable, allEntities, colliders, walls, map?.groundY ?? 0);
 
-  // Snapshot isIt before round manager runs tag detection
-  const prevLocalIsIt = (player as unknown as Controllable).isIt;
-  const prevRemoteIsIt = new Map<string, boolean>();
-  for (const [id, rp] of remotePlayers) prevRemoteIsIt.set(id, rp.isIt);
+  // Round manager only handles local entities — bots don't interact with remote players
+  roundManager.update(dt, localEntities);
 
-  roundManager.update(dt, allEntities);
-
-  // Broadcast tag events when local round manager detects a tag involving a remote player
-  if (prevLocalIsIt && !(player as unknown as Controllable).isIt) {
-    // Local player was "it" and tagged someone — find the newly-it remote player
+  // Cross-player tag detection (local ↔ remote) — handled here, not by roundManager
+  const lp = player as unknown as Controllable;
+  if (!lp.isEliminated && lp.tagImmunity <= 0) {
     for (const [id, rp] of remotePlayers) {
-      if (!prevRemoteIsIt.get(id) && rp.isIt) {
+      if (rp.isEliminated) continue;
+      if (lp.position.distanceTo(rp.position) > 1.5) continue;
+      if (lp.isIt && rp.tagImmunity <= 0) {
+        lp.setIt(false); lp.tagImmunity = 2;
+        rp.setIt(true);  rp.tagImmunity = 0;
         network.sendTag(network.peerId, id);
         break;
+      } else if (rp.isIt && !lp.isIt && rp.tagImmunity <= 0) {
+        rp.setIt(false); rp.tagImmunity = 2;
+        lp.setIt(true);  lp.tagImmunity = 0;
+        network.sendTag(id, network.peerId);
+        break;
       }
-    }
-  }
-  for (const [id, rp] of remotePlayers) {
-    const wasIt = prevRemoteIsIt.get(id) ?? false;
-    if (wasIt && !rp.isIt && !(player as unknown as Controllable).isIt && prevLocalIsIt === false
-        && (player as unknown as Controllable).isIt) {
-      // Remote was "it" and tagged local player
-      network.sendTag(id, network.peerId);
     }
   }
 
