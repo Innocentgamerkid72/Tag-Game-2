@@ -390,16 +390,9 @@ function gameLoop() {
     prevPlayerIsHunter = false;
     weapon.setWeapon("blaster");
 
-    // Deterministic IT sync in multiplayer (not Tomfoolery — that mode sets everyone IT)
-    if (knownPeers.size > 0 && roundManager.mode.name !== "Tomfoolery") {
-      const allHumanIds = [network.peerId, ...knownPeers].sort();
-      const itPeerId    = allHumanIds[roundManager.roundId % allHumanIds.length];
-      const localIsIt   = itPeerId === network.peerId;
-      (player as unknown as Controllable).setIt(localIsIt);
-      // Ensure no bots are IT if a human player is assigned IT
-      for (const bot of roundManager.bots) (bot as unknown as Controllable).setIt(false);
-      for (const [id, rp] of remotePlayers) rp.setIt(id === itPeerId);
-    }
+    // Remote players start each round as not-IT.
+    // IT is determined locally by roundManager — tag events are the only way IT transfers.
+    for (const rp of remotePlayers.values()) { rp.setIt(false); rp.tagImmunity = 0; }
   }
 
   const isHunterMode     = roundManager.mode.name === "Hunter";

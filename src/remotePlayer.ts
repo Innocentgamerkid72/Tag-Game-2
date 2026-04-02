@@ -97,7 +97,8 @@ export class RemotePlayer implements Controllable {
     this._mesh.rotation.y = msg.yaw;
     this._lastSeen = performance.now();
 
-    if (msg.isIt !== this.isIt)                   this.setIt(msg.isIt);
+    // isIt is NOT applied from state — only explicit tag events change IT status
+    // This prevents both clients overwriting each other's IT at round start
     if (msg.isFrozen !== this.isFrozen)           this.setFrozen(msg.isFrozen);
     if (msg.isEliminated !== this.isEliminated)   this.setEliminated(msg.isEliminated);
   }
