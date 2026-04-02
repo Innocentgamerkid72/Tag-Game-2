@@ -1,4 +1,6 @@
-// ── Network message types ─────────────────────────────────────────────────────
+import Ably from "ably";
+
+// ── Message types ─────────────────────────────────────────────────────────────
 export type NetMsg =
   | { type: "state"; peerId: string; username: string;
       x: number; y: number; z: number;
@@ -7,17 +9,14 @@ export type NetMsg =
   | { type: "tag";   peerId: string; taggerId: string; taggedId: string; }
   | { type: "leave"; peerId: string; };
 
-// ── Relay server URL ──────────────────────────────────────────────────────────
-// After deploying the server (see server/index.js), replace this with your URL.
-// Example: "wss://tag-game-2.onrender.com"
-const RELAY_URL = "wss://tag-game-2-server.onrender.com";
+const ABLY_KEY = "CTFlEA.V1yraA:sxcJVgiYCm20Ts4jknPPnR3nr6rwN1P-EBOECxWt8FI";
 
 // ── NetworkManager ────────────────────────────────────────────────────────────
 export class NetworkManager {
   readonly peerId:   string;
   readonly roomCode: string;
 
-  private _ws: WebSocket | null = null;
+  private _channel: Ably.RealtimeChannel | null = null;
   private _handler: ((msg: NetMsg) => void) | null = null;
 
   constructor() {
@@ -39,34 +38,32 @@ export class NetworkManager {
   connect(handler: (msg: NetMsg) => void) {
     this._handler = handler;
     try {
-      this._ws = new WebSocket(`${RELAY_URL}?room=${this.roomCode}`);
+      const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: this.peerId });
+      this._channel = ably.channels.get(`tag-game-${this.roomCode}`);
+      this._channel.subscribe((msg) => {
+        try {
+          const data = msg.data as NetMsg;
+          if (data.peerId !== this.peerId) this._handler?.(data);
+        } catch { /* ignore malformed */ }
+      });
     } catch {
-      return; // server unreachable — game runs solo
+      /* silently degrade to solo if Ably is unreachable */
     }
-    this._ws.onmessage = ({ data }) => {
-      try {
-        const msg = JSON.parse(data) as NetMsg;
-        if (msg.peerId !== this.peerId) this._handler?.(msg);
-      } catch { /* ignore malformed frames */ }
-    };
-    this._ws.onerror = () => { /* silently degrade to solo */ };
   }
 
   sendState(s: Omit<NetMsg & { type: "state" }, "type" | "peerId">) {
-    this._send({ type: "state", peerId: this.peerId, ...s });
+    this._publish({ type: "state", peerId: this.peerId, ...s });
   }
 
   sendTag(taggerId: string, taggedId: string) {
-    this._send({ type: "tag", peerId: this.peerId, taggerId, taggedId });
+    this._publish({ type: "tag", peerId: this.peerId, taggerId, taggedId });
   }
 
   sendLeave() {
-    this._send({ type: "leave", peerId: this.peerId });
+    this._publish({ type: "leave", peerId: this.peerId });
   }
 
-  private _send(msg: NetMsg) {
-    if (this._ws?.readyState === WebSocket.OPEN) {
-      this._ws.send(JSON.stringify(msg));
-    }
+  private _publish(msg: NetMsg) {
+    this._channel?.publish("msg", msg);
   }
 }

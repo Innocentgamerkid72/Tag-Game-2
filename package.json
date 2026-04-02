@@ -8,6 +8,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "ably": "^2.21.0",
     "three": "^0.183.2"
   },
   "devDependencies": {
