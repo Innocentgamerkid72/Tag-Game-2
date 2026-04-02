@@ -562,6 +562,18 @@ function gameLoop() {
   // Round manager only handles local entities — bots don't interact with remote players
   roundManager.update(dt, localEntities);
 
+  // If multiple human players are IT, resolve conflict: lowest peerId keeps IT
+  if (knownPeers.size > 0 && roundManager.mode.name !== "Tomfoolery") {
+    const lp = player as unknown as Controllable;
+    const humanIts: string[] = [];
+    if (lp.isIt) humanIts.push(network.peerId);
+    for (const [id, rp] of remotePlayers) if (rp.isIt) humanIts.push(id);
+    if (humanIts.length > 1) {
+      humanIts.sort();
+      applyItPeer(humanIts[0]);
+    }
+  }
+
   // Cross-player tag detection (local ↔ remote) — handled here, not by roundManager
   const lp = player as unknown as Controllable;
   if (!lp.isEliminated && lp.tagImmunity <= 0) {
