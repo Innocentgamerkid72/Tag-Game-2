@@ -63,6 +63,19 @@ if (roomCodeEl) {
   });
 }
 
+function applyItPeer(itPeerId: string) {
+  // Set IT state for everyone based on the authoritative itPeerId
+  const lp = player as unknown as Controllable;
+  lp.setIt(itPeerId === network.peerId);
+  if (lp.isIt) lp.tagImmunity = 0; else lp.tagImmunity = 2;
+  for (const [id, rp] of remotePlayers) {
+    rp.setIt(id === itPeerId);
+    rp.tagImmunity = rp.isIt ? 0 : 2;
+  }
+  // No bots are IT when there are human players connected
+  for (const bot of roundManager.bots) (bot as unknown as Controllable).setIt(false);
+}
+
 function handleNetMessage(msg: NetMsg) {
   if (msg.type === "state") {
     knownPeers.add(msg.peerId);
@@ -74,8 +87,11 @@ function handleNetMessage(msg: NetMsg) {
     rp.applyState(msg);
     return;
   }
+  if (msg.type === "setit") {
+    applyItPeer(msg.itPeerId);
+    return;
+  }
   if (msg.type === "tag") {
-    // Authoritative tag from network — update IT state directly
     const tagger = remotePlayers.get(msg.taggerId);
     const tagged  = remotePlayers.get(msg.taggedId);
     tagger?.setIt(false);
@@ -390,9 +406,24 @@ function gameLoop() {
     prevPlayerIsHunter = false;
     weapon.setWeapon("blaster");
 
-    // Remote players start each round as not-IT.
-    // IT is determined locally by roundManager — tag events are the only way IT transfers.
-    for (const rp of remotePlayers.values()) { rp.setIt(false); rp.tagImmunity = 0; }
+    // If there are other players connected, the host (lowest peerId) picks who is IT
+    // and broadcasts it so everyone agrees. Otherwise local roundManager handles it.
+    if (knownPeers.size > 0 && roundManager.mode.name !== "Tomfoolery") {
+      const allIds   = [network.peerId, ...knownPeers].sort();
+      const isHost   = allIds[0] === network.peerId;
+      if (isHost) {
+        // Pick a random human to be IT
+        const itPeerId = allIds[roundManager.roundId % allIds.length];
+        applyItPeer(itPeerId);
+        network.sendSetIt(itPeerId, roundManager.roundId);
+      } else {
+        // Non-host: start as not-IT, wait for setit from host
+        (player as unknown as Controllable).setIt(false);
+        (player as unknown as Controllable).tagImmunity = 2;
+        for (const rp of remotePlayers.values()) { rp.setIt(false); rp.tagImmunity = 2; }
+        for (const bot of roundManager.bots) (bot as unknown as Controllable).setIt(false);
+      }
+    }
   }
 
   const isHunterMode     = roundManager.mode.name === "Hunter";
@@ -562,7 +593,6 @@ function gameLoop() {
         x: p.position.x, y: p.position.y, z: p.position.z,
         vx: p.velocity.x, vy: p.velocity.y, vz: p.velocity.z,
         yaw:         player.yaw,
-        isIt:        p.isIt,
         isFrozen:    p.isFrozen,
         isEliminated: p.isEliminated,
       });

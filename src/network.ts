@@ -5,8 +5,9 @@ export type NetMsg =
   | { type: "state"; peerId: string; username: string;
       x: number; y: number; z: number;
       vx: number; vy: number; vz: number;
-      yaw: number; isIt: boolean; isFrozen: boolean; isEliminated: boolean; }
+      yaw: number; isFrozen: boolean; isEliminated: boolean; }
   | { type: "tag";   peerId: string; taggerId: string; taggedId: string; }
+  | { type: "setit"; peerId: string; itPeerId: string; roundId: number; }
   | { type: "leave"; peerId: string; };
 
 const ABLY_KEY = "CTFlEA.V1yraA:sxcJVgiYCm20Ts4jknPPnR3nr6rwN1P-EBOECxWt8FI";
@@ -73,6 +74,10 @@ export class NetworkManager {
 
   sendTag(taggerId: string, taggedId: string) {
     this._publish({ type: "tag", peerId: this.peerId, taggerId, taggedId });
+  }
+
+  sendSetIt(itPeerId: string, roundId: number) {
+    this._publish({ type: "setit", peerId: this.peerId, itPeerId, roundId });
   }
 
   sendLeave() {
