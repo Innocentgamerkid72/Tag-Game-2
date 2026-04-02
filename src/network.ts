@@ -1,4 +1,4 @@
-import Ably from "ably";
+import { Realtime, type RealtimeChannel, type Message } from "ably";
 
 // ── Message types ─────────────────────────────────────────────────────────────
 export type NetMsg =
@@ -16,7 +16,7 @@ export class NetworkManager {
   readonly peerId:   string;
   readonly roomCode: string;
 
-  private _channel: Ably.RealtimeChannel | null = null;
+  private _channel: RealtimeChannel | null = null;
   private _handler: ((msg: NetMsg) => void) | null = null;
 
   constructor() {
@@ -38,9 +38,9 @@ export class NetworkManager {
   connect(handler: (msg: NetMsg) => void) {
     this._handler = handler;
     try {
-      const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: this.peerId });
+      const ably = new Realtime({ key: ABLY_KEY, clientId: this.peerId });
       this._channel = ably.channels.get(`tag-game-${this.roomCode}`);
-      this._channel.subscribe((msg) => {
+      this._channel.subscribe((msg: Message) => {
         try {
           const data = msg.data as NetMsg;
           if (data.peerId !== this.peerId) this._handler?.(data);
