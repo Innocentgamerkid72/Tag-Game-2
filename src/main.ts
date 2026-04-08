@@ -48,8 +48,10 @@ const weapon = new WeaponSystem();
 
 // ── Networking ────────────────────────────────────────────────────────────────
 const network = new NetworkManager();
-const remotePlayers = new Map<string, RemotePlayer>();
-const knownPeers   = new Set<string>(); // all peer IDs seen this session
+const remotePlayers    = new Map<string, RemotePlayer>();
+const knownPeers       = new Set<string>(); // all peer IDs seen this session
+const remoteUsernames  = new Map<string, string>(); // peerId → username (tracked pre-login)
+const remoteAdmins     = new Set<string>(); // peerIds of remote players with admin
 
 const roomCodeEl = document.getElementById("room-code");
 if (roomCodeEl) {
@@ -86,6 +88,8 @@ function handleNetMessage(msg: NetMsg) {
   if (msg.type === "state") {
     const isNewPeer = !remotePlayers.has(msg.peerId);
     knownPeers.add(msg.peerId);
+    remoteUsernames.set(msg.peerId, msg.username);
+    if (msg.isAdmin) remoteAdmins.add(msg.peerId); else remoteAdmins.delete(msg.peerId);
     let rp = remotePlayers.get(msg.peerId);
     if (!rp) {
       rp = new RemotePlayer(scene, msg.peerId, msg.username);
@@ -119,6 +123,8 @@ function handleNetMessage(msg: NetMsg) {
   }
   if (msg.type === "leave") {
     knownPeers.delete(msg.peerId);
+    remoteUsernames.delete(msg.peerId);
+    remoteAdmins.delete(msg.peerId);
     const rp = remotePlayers.get(msg.peerId);
     if (rp) { rp.removeFromScene(scene); remotePlayers.delete(msg.peerId); }
   }
@@ -311,7 +317,8 @@ function startGame(nickname: string) {
   gameStarted = true;
   player.setName(nickname);
   const lower = nickname.toLowerCase();
-  roundManager.isAdmin = lower.includes("innocent") || lower.includes("kid") || lower.includes("lawrence");
+  const nameQualifies = lower.includes("innocent") || lower.includes("kid") || lower.includes("lawrence");
+  roundManager.isAdmin = nameQualifies && remoteAdmins.size < 2;
   if (roundManager.isAdmin) adminBtn.style.display = "block";
   roundManager.startRound();
 }
@@ -320,6 +327,12 @@ nicknameSubmit.addEventListener("click", () => {
   const name = nicknameInput.value.trim();
   if (name.length < 2) {
     loginError.textContent = "Nickname must be at least 2 characters.";
+    return;
+  }
+  // Reject duplicate nicknames
+  const taken = [...remoteUsernames.values()].some(u => u.toLowerCase() === name.toLowerCase());
+  if (taken) {
+    loginError.textContent = "That nickname is already taken. Choose another.";
     return;
   }
   startGame(name);
@@ -568,11 +581,12 @@ function gameLoop() {
       _netTickAccum = 0;
       const p = player as unknown as Controllable;
       network.sendState({
-        username:    localUsername,
+        username:     localUsername,
+        isAdmin:      roundManager.isAdmin,
         x: p.position.x, y: p.position.y, z: p.position.z,
         vx: p.velocity.x, vy: p.velocity.y, vz: p.velocity.z,
-        yaw:         player.yaw,
-        isFrozen:    p.isFrozen,
+        yaw:          player.yaw,
+        isFrozen:     p.isFrozen,
         isEliminated: p.isEliminated,
       });
     }

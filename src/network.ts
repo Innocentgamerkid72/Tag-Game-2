@@ -2,7 +2,7 @@ import { Realtime, type RealtimeChannel, type Message } from "ably";
 
 // ── Message types ─────────────────────────────────────────────────────────────
 export type NetMsg =
-  | { type: "state"; peerId: string; username: string;
+  | { type: "state"; peerId: string; username: string; isAdmin: boolean;
       x: number; y: number; z: number;
       vx: number; vy: number; vz: number;
       yaw: number; isFrozen: boolean; isEliminated: boolean; }
