@@ -62,6 +62,13 @@ if (roomCodeEl) {
   });
 }
 
+function findCurrentItPeerId(): string | null {
+  const lp = player as unknown as Controllable;
+  if (lp.isIt) return network.peerId;
+  for (const [id, rp] of remotePlayers) if (rp.isIt) return id;
+  return null; // a bot is IT, or nobody yet
+}
+
 function applyItPeer(itPeerId: string) {
   // Set IT state for everyone based on the authoritative itPeerId
   const lp = player as unknown as Controllable;
@@ -77,6 +84,7 @@ function applyItPeer(itPeerId: string) {
 
 function handleNetMessage(msg: NetMsg) {
   if (msg.type === "state") {
+    const isNewPeer = !remotePlayers.has(msg.peerId);
     knownPeers.add(msg.peerId);
     let rp = remotePlayers.get(msg.peerId);
     if (!rp) {
@@ -84,6 +92,15 @@ function handleNetMessage(msg: NetMsg) {
       remotePlayers.set(msg.peerId, rp);
     }
     rp.applyState(msg);
+    // When a new peer joins mid-round, the host re-broadcasts who is IT
+    // so the latejoiner doesn't keep their locally-chosen IT.
+    if (isNewPeer && roundManager.mode.name !== "Tomfoolery") {
+      const allIds = [network.peerId, ...knownPeers].sort();
+      if (allIds[0] === network.peerId) { // I'm the host
+        const itId = findCurrentItPeerId();
+        if (itId) network.sendSetIt(itId, roundManager.roundId);
+      }
+    }
     return;
   }
   if (msg.type === "setit") {
@@ -391,33 +408,6 @@ function gameLoop() {
     bot.update(dt, colliders, walls, map ? map.teleporters : [], localEntities as unknown as { isIt: boolean; tagImmunity: number; isFrozen: boolean; position: THREE.Vector3 }[], map?.groundY ?? 0, map?.voidBoundary);
   }
 
-  // Detect new round — clear all given weapons so they don't carry over
-  if (roundManager.roundId !== lastRoundId) {
-    lastRoundId = roundManager.roundId;
-    botGivenWeapons.clear();
-    botFireTimers.clear();
-    weapon.setWeapon("blaster");
-
-    // If there are other players connected, the host (lowest peerId) picks who is IT
-    // and broadcasts it so everyone agrees. Otherwise local roundManager handles it.
-    if (knownPeers.size > 0 && roundManager.mode.name !== "Tomfoolery") {
-      const allIds   = [network.peerId, ...knownPeers].sort();
-      const isHost   = allIds[0] === network.peerId;
-      if (isHost) {
-        // Pick a random human to be IT
-        const itPeerId = allIds[roundManager.roundId % allIds.length];
-        applyItPeer(itPeerId);
-        network.sendSetIt(itPeerId, roundManager.roundId);
-      } else {
-        // Non-host: start as not-IT, wait for setit from host
-        (player as unknown as Controllable).setIt(false);
-        (player as unknown as Controllable).tagImmunity = 2;
-        for (const rp of remotePlayers.values()) { rp.setIt(false); rp.tagImmunity = 2; }
-        for (const bot of roundManager.bots) (bot as unknown as Controllable).setIt(false);
-      }
-    }
-  }
-
   const playerIsHunter = roundManager.mode.name === "Hunter" && (player as unknown as Controllable).isIt;
 
   // Auto-fire weapons given to bots — targets nearest non-eliminated entity
@@ -512,6 +502,32 @@ function gameLoop() {
 
   // Round manager only handles local entities — bots don't interact with remote players
   roundManager.update(dt, localEntities);
+
+  // Detect new round AFTER update() so _buildRound() changes are visible immediately.
+  // This lets us override mode.onStart()'s local IT pick on the very same frame.
+  if (roundManager.roundId !== lastRoundId) {
+    lastRoundId = roundManager.roundId;
+    botGivenWeapons.clear();
+    botFireTimers.clear();
+    weapon.setWeapon("blaster");
+
+    // Host picks who is IT and broadcasts; non-host waits for setit.
+    if (knownPeers.size > 0 && roundManager.mode.name !== "Tomfoolery") {
+      const allIds = [network.peerId, ...knownPeers].sort();
+      const isHost = allIds[0] === network.peerId;
+      if (isHost) {
+        const itPeerId = allIds[roundManager.roundId % allIds.length];
+        applyItPeer(itPeerId);
+        network.sendSetIt(itPeerId, roundManager.roundId);
+      } else {
+        // Clear all local IT flags and wait for the host's setit message
+        (player as unknown as Controllable).setIt(false);
+        (player as unknown as Controllable).tagImmunity = 2;
+        for (const rp of remotePlayers.values()) { rp.setIt(false); rp.tagImmunity = 2; }
+        for (const bot of roundManager.bots) (bot as unknown as Controllable).setIt(false);
+      }
+    }
+  }
 
   // If multiple human players are IT, resolve conflict: lowest peerId keeps IT
   if (knownPeers.size > 0 && roundManager.mode.name !== "Tomfoolery") {
