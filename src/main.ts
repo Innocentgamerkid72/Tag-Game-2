@@ -45,7 +45,6 @@ player.position.set(0, 2, 8);
 const thirdPersonCam = new ThirdPersonCamera();
 const input = new InputHandler(renderer.domElement);
 const weapon = new WeaponSystem();
-weapon.setLocalPlayer(player as unknown as import("./types").Controllable);
 
 // ── Networking ────────────────────────────────────────────────────────────────
 const network = new NetworkManager();
@@ -173,10 +172,6 @@ const botGivenWeapons = new Map<number, WeaponType>();
 const botFireTimers   = new Map<number, number>();
 let lastRoundId = -1;
 // Hunter mode — track bot It transitions
-const hunterBotTimers     = new Map<number, number>();
-const hunterBotWeaponIdx  = new Map<number, number>();
-const HUNTER_WEAPONS: WeaponType[] = ["beartrap", "flashbang"];
-let prevPlayerIsHunter = false;
 
 const ROW  = "width:100%;padding:6px 8px;cursor:pointer;font-family:monospace;font-size:0.8rem;border-radius:4px;margin-bottom:4px;text-align:left;";
 const ROW_RED    = ROW + "background:#1a0a0a;color:#ff6666;border:1px solid #553333;";
@@ -401,9 +396,6 @@ function gameLoop() {
     lastRoundId = roundManager.roundId;
     botGivenWeapons.clear();
     botFireTimers.clear();
-    hunterBotTimers.clear();
-    hunterBotWeaponIdx.clear();
-    prevPlayerIsHunter = false;
     weapon.setWeapon("blaster");
 
     // If there are other players connected, the host (lowest peerId) picks who is IT
@@ -426,43 +418,7 @@ function gameLoop() {
     }
   }
 
-  const isHunterMode     = roundManager.mode.name === "Hunter";
-  const playerIsHunter   = isHunterMode && (player as unknown as Controllable).isIt;
-
-  // Auto-equip beartrap the moment the player becomes the hunter
-  if (playerIsHunter && !prevPlayerIsHunter) weapon.setWeapon("beartrap");
-  prevPlayerIsHunter = playerIsHunter;
-
-  // Hunter bots auto-fire beartrap / flashbang alternately at nearest target
-  if (isHunterMode) {
-    for (let i = 0; i < roundManager.bots.length; i++) {
-      const bot = roundManager.bots[i];
-      if (!(bot as unknown as Controllable).isIt || bot.isEliminated) continue;
-
-      const timer = (hunterBotTimers.get(i) ?? 0) - dt;
-      if (timer > 0) { hunterBotTimers.set(i, timer); continue; }
-
-      const wIdx      = (hunterBotWeaponIdx.get(i) ?? 0) % HUNTER_WEAPONS.length;
-      const wType     = HUNTER_WEAPONS[wIdx];
-      hunterBotWeaponIdx.set(i, wIdx + 1);
-
-      let nearest: Controllable | null = null;
-      let nearestDist = Infinity;
-      for (const e of allEntities) {
-        if ((e as unknown) === (bot as unknown as Controllable) || e.isEliminated) continue;
-        const d = bot.position.distanceTo(e.position);
-        if (d < nearestDist) { nearestDist = d; nearest = e; }
-      }
-      if (nearest) {
-        const origin = bot.position.clone().add(new THREE.Vector3(0, 1.4, 0));
-        // Bear traps are thrown low; flashbangs can arc — use flat horizontal lead
-        const dir = aimWithLead(origin, nearest, 10).setY(0).normalize();
-        origin.addScaledVector(dir, 0.6);
-        weapon.fireAs(scene, origin, dir, bot as unknown as Controllable, wType);
-      }
-      hunterBotTimers.set(i, DEFS[wType].cooldown);
-    }
-  }
+  const playerIsHunter = roundManager.mode.name === "Hunter" && (player as unknown as Controllable).isIt;
 
   // Auto-fire weapons given to bots — targets nearest non-eliminated entity
   for (const [botIdx, weaponType] of botGivenWeapons) {
@@ -514,13 +470,9 @@ function gameLoop() {
   weapon.setContext(allEntities, colliders, walls);
 
   if (weaponsActive) {
-    if (playerIsHunter) {
-      // Hunter: only beartrap (6) and flashbang (7) are available
-      if (input.isDown("Digit6")) weapon.setWeapon("beartrap");
-      if (input.isDown("Digit7")) weapon.setWeapon("flashbang");
-    } else {
-      // Weapon switching — keys 1-7
-      const weaponKeys = ["Digit1", "Digit2", "Digit3", "Digit4", "Digit5", "Digit6", "Digit7"];
+    {
+      // Weapon switching — keys 1-5
+      const weaponKeys = ["Digit1", "Digit2", "Digit3", "Digit4", "Digit5"];
       for (let i = 0; i < weaponKeys.length; i++) {
         if (input.isDown(weaponKeys[i])) weapon.setWeapon(WEAPON_ORDER[i]);
       }
@@ -537,14 +489,13 @@ function gameLoop() {
     // Weapon HUD
     const WEAPON_COLORS: Record<string, string> = {
       blaster: "#ff6600", rocket: "#ff2200", freeze: "#44aaff", shotgun: "#ffee33",
-      sword: "#aaddff", beartrap: "#cc7722", flashbang: "#eeeeff",
+      sword: "#aaddff",
     };
-    const hudWeapons: WeaponType[] = playerIsHunter ? HUNTER_WEAPONS : WEAPON_ORDER;
-    weaponHudEl.innerHTML = hudWeapons.map((w, i) => {
+    weaponHudEl.innerHTML = WEAPON_ORDER.map((w, i) => {
       const active = w === weapon.type;
       const col = WEAPON_COLORS[w];
       const label = DEFS[w].name.split(" ")[0];
-      const keyNum = playerIsHunter ? (i === 0 ? 6 : 7) : i + 1;
+      const keyNum = i + 1;
       return `<div style="
         padding:6px 14px;font-family:monospace;font-size:13px;border-radius:6px;
         background:${active ? col + "33" : "rgba(0,0,0,0.45)"};
@@ -557,7 +508,7 @@ function gameLoop() {
     weaponHudEl.innerHTML = "";
   }
 
-  weapon.update(dt, scene, player as unknown as Controllable, allEntities, colliders, walls, map?.groundY ?? 0);
+  weapon.update(dt, scene, player as unknown as Controllable, allEntities, colliders, walls);
 
   // Round manager only handles local entities — bots don't interact with remote players
   roundManager.update(dt, localEntities);

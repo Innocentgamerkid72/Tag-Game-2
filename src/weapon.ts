@@ -1,9 +1,8 @@
 import * as THREE from "three";
 import { Controllable } from "./types";
-import { GRAVITY } from "./physics";
 
 // ── Per-weapon config ─────────────────────────────────────────────────────────
-export type WeaponType = "blaster" | "rocket" | "freeze" | "shotgun" | "sword" | "beartrap" | "flashbang";
+export type WeaponType = "blaster" | "rocket" | "freeze" | "shotgun" | "sword";
 
 interface WeaponDef {
   name:        string;
@@ -54,22 +53,9 @@ export const DEFS: Record<WeaponType, WeaponDef> = {
     gravity: 0, hitForce: 0, hitForceY: 0,
     splashRadius: 0, freezeSec: 0, pellets: 0, spread: 0,
   },
-  // bear trap and flashbang are handled separately
-  beartrap: {
-    name: "Bear Trap", color: 0xcc8833, lightColor: 0xffaa44,
-    size: 0, speed: 0, cooldown: 5.0, life: 0,
-    gravity: 0, hitForce: 0, hitForceY: 0,
-    splashRadius: 0, freezeSec: 0, pellets: 0, spread: 0,
-  },
-  flashbang: {
-    name: "Flashbang", color: 0xeeeeff, lightColor: 0xffffff,
-    size: 0, speed: 0, cooldown: 6.0, life: 0,
-    gravity: 0, hitForce: 0, hitForceY: 0,
-    splashRadius: 0, freezeSec: 0, pellets: 0, spread: 0,
-  },
 };
 
-export const WEAPON_ORDER: WeaponType[] = ["blaster", "rocket", "freeze", "shotgun", "sword", "beartrap", "flashbang"];
+export const WEAPON_ORDER: WeaponType[] = ["blaster", "rocket", "freeze", "shotgun", "sword"];
 
 // ── Explosion effect ──────────────────────────────────────────────────────────
 class Explosion {
@@ -407,240 +393,6 @@ class SwordSwing {
   }
 }
 
-// ── Bear Trap ─────────────────────────────────────────────────────────────────
-const TRAP_ARM_DELAY    = 0.6;
-const TRAP_TRIGGER_DIST = 0.85;
-const TRAP_FREEZE_SEC   = 3.5;
-const TRAP_MAX_LIFE     = 30;
-
-class BearTrap {
-  private readonly _mesh:    THREE.Group;
-  private readonly _baseMat: THREE.MeshLambertMaterial;
-  private readonly _light:   THREE.PointLight;
-  private readonly _vel:     THREE.Vector3;
-  private _armed     = false;
-  private _armDelay  = TRAP_ARM_DELAY;
-  private _life      = TRAP_MAX_LIFE;
-  done = false;
-
-  constructor(
-    private readonly _scene:    THREE.Scene,
-    origin:    THREE.Vector3,
-    direction: THREE.Vector3,
-    private readonly _shooter:  Controllable,
-    private readonly _freezeMap: Map<Controllable, number>,
-    visibleToLocal = true,
-  ) {
-    this._mesh = new THREE.Group();
-
-    this._baseMat = new THREE.MeshLambertMaterial({ color: 0x886622 });
-    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.07, 10), this._baseMat);
-    this._mesh.add(base);
-
-    const spikeMat = new THREE.MeshLambertMaterial({ color: 0xbbbbbb });
-    for (let i = 0; i < 8; i++) {
-      const a = (i / 8) * Math.PI * 2;
-      const spike = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.22, 4), spikeMat);
-      spike.position.set(Math.cos(a) * 0.22, 0.11, Math.sin(a) * 0.22);
-      this._mesh.add(spike);
-    }
-    const centre = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.28, 5), spikeMat);
-    centre.position.y = 0.14;
-    this._mesh.add(centre);
-
-    this._light = new THREE.PointLight(0xff4400, 0, 4);
-    this._mesh.add(this._light);
-
-    this._mesh.position.copy(origin);
-    this._mesh.visible = visibleToLocal;
-    _scene.add(this._mesh);
-
-    // Arc the throw slightly upward
-    this._vel = new THREE.Vector3(direction.x, Math.max(direction.y * 0.6, 0.3), direction.z)
-      .normalize().multiplyScalar(10);
-  }
-
-  update(dt: number, entities: Controllable[], colliders: THREE.Box3[], groundY: number) {
-    if (this.done) return;
-    this._life -= dt;
-    if (this._life <= 0) { this._remove(); return; }
-
-    if (!this._armed) {
-      this._vel.y += GRAVITY * dt;
-      this._mesh.position.addScaledVector(this._vel, dt);
-      this._mesh.rotation.x += 3 * dt;
-
-      const p = this._mesh.position;
-      if (p.y <= groundY + 0.04) {
-        p.y = groundY + 0.04;
-        this._plant();
-        return;
-      }
-      for (const box of colliders) {
-        const inX = p.x > box.min.x - 0.35 && p.x < box.max.x + 0.35;
-        const inZ = p.z > box.min.z - 0.35 && p.z < box.max.z + 0.35;
-        if (!inX || !inZ) continue;
-        if (p.y <= box.max.y + 0.1 && this._vel.y <= 0) {
-          p.y = box.max.y + 0.04;
-          this._plant();
-          return;
-        }
-      }
-      return;
-    }
-
-    // Arming delay — pulse orange
-    if (this._armDelay > 0) {
-      this._armDelay -= dt;
-      const pulse = (Math.sin(this._armDelay * 18) + 1) * 0.5;
-      this._baseMat.color.setRGB(0.5 + pulse * 0.5, 0.26, 0);
-      this._light.intensity = pulse * 1.5;
-      return;
-    }
-
-    // Armed — bright red glow, check proximity
-    this._baseMat.color.set(0xff2200);
-    this._light.intensity = 2 + Math.sin(Date.now() * 0.01) * 0.5;
-
-    const p = this._mesh.position;
-    for (const e of entities) {
-      if ((e as unknown) === (this._shooter as unknown)) continue;
-      if (e.isEliminated || e.isFrozen) continue;
-      const dx = e.position.x - p.x;
-      const dz = e.position.z - p.z;
-      if (Math.sqrt(dx * dx + dz * dz) < TRAP_TRIGGER_DIST) {
-        e.setFrozen(true);
-        this._freezeMap.set(e, TRAP_FREEZE_SEC);
-        this._remove();
-        return;
-      }
-    }
-  }
-
-  private _plant() {
-    this._armed = true;
-    this._armDelay = TRAP_ARM_DELAY;
-    this._vel.set(0, 0, 0);
-    this._mesh.rotation.set(0, Math.random() * Math.PI * 2, 0);
-  }
-
-  private _remove() {
-    this._scene.remove(this._mesh);
-    this.done = true;
-  }
-}
-
-// ── Flashbang ─────────────────────────────────────────────────────────────────
-const FLASHBANG_FUSE     = 2.2;
-const FLASHBANG_RADIUS   = 8;
-const FLASHBANG_FORCE    = 20;
-const FLASHBANG_FORCE_Y  = 12;
-
-class Flashbang {
-  private readonly _mesh:      THREE.Mesh;
-  private readonly _blinkLight: THREE.PointLight;
-  private readonly _vel:       THREE.Vector3;
-  private _fuse      = FLASHBANG_FUSE;
-  private _beepTimer = 0;
-  done = false;
-
-  constructor(
-    private readonly _scene:   THREE.Scene,
-    origin:    THREE.Vector3,
-    direction: THREE.Vector3,
-    private readonly _shooter: Controllable,
-    private readonly _onFlash: (intensity: number) => void,
-  ) {
-    this._mesh = new THREE.Mesh(
-      new THREE.SphereGeometry(0.18, 8, 8),
-      new THREE.MeshBasicMaterial({ color: 0xddeeff }),
-    );
-    this._mesh.position.copy(origin);
-    _scene.add(this._mesh);
-
-    this._blinkLight = new THREE.PointLight(0xffffff, 0, 5);
-    this._mesh.add(this._blinkLight);
-
-    this._vel = direction.clone().normalize().multiplyScalar(16);
-  }
-
-  update(
-    dt: number,
-    entities: Controllable[],
-    colliders: THREE.Box3[],
-    groundY: number,
-  ) {
-    if (this.done) return;
-
-    this._vel.y += GRAVITY * dt;
-    this._mesh.position.addScaledVector(this._vel, dt);
-
-    // Bounce off ground
-    if (this._mesh.position.y <= groundY + 0.18) {
-      this._mesh.position.y = groundY + 0.18;
-      this._vel.y = Math.abs(this._vel.y) * 0.45;
-      this._vel.x *= 0.75; this._vel.z *= 0.75;
-    }
-    // Bounce off platform surfaces
-    for (const box of colliders) {
-      const p = this._mesh.position;
-      const inX = p.x > box.min.x - 0.2 && p.x < box.max.x + 0.2;
-      const inZ = p.z > box.min.z - 0.2 && p.z < box.max.z + 0.2;
-      if (!inX || !inZ) continue;
-      if (p.y <= box.max.y + 0.2 && this._vel.y <= 0) {
-        p.y = box.max.y + 0.18;
-        this._vel.y = Math.abs(this._vel.y) * 0.45;
-        this._vel.x *= 0.75; this._vel.z *= 0.75;
-        break;
-      }
-    }
-
-    // Blink faster as fuse counts down
-    this._fuse      -= dt;
-    this._beepTimer -= dt;
-    const progress   = 1 - Math.max(0, this._fuse / FLASHBANG_FUSE);
-    if (this._beepTimer <= 0) {
-      this._beepTimer   = 0.5 - progress * 0.42;
-      this._blinkLight.intensity = 4;
-    } else {
-      this._blinkLight.intensity = Math.max(0, this._blinkLight.intensity - 12 * dt);
-    }
-
-    if (this._fuse <= 0) this._explode(entities);
-  }
-
-  private _explode(entities: Controllable[]) {
-    const pos = this._mesh.position;
-
-    for (const e of entities) {
-      if (e.isEliminated) continue;
-      const dist = pos.distanceTo(e.position);
-      if (dist > FLASHBANG_RADIUS) continue;
-      const falloff = 1 - dist / FLASHBANG_RADIUS;
-      const push = new THREE.Vector3(e.position.x - pos.x, 0, e.position.z - pos.z);
-      const len  = push.length();
-      if (len > 0) push.divideScalar(len);
-      e.velocity.x    += push.x * FLASHBANG_FORCE * falloff;
-      e.velocity.z    += push.z * FLASHBANG_FORCE * falloff;
-      e.velocity.y     = Math.max(e.velocity.y, FLASHBANG_FORCE_Y * falloff);
-      e.knockbackTimer = 0.6;
-      e.tagImmunity    = Math.max(e.tagImmunity, 0.6);
-    }
-
-    // Screen flash proportional to shooter's proximity
-    const shooterDist   = pos.distanceTo(this._shooter.position);
-    const flashIntensity = Math.max(0, 1 - shooterDist / FLASHBANG_RADIUS);
-    if (flashIntensity > 0.05) this._onFlash(flashIntensity);
-
-    this._remove();
-  }
-
-  private _remove() {
-    this._scene.remove(this._mesh);
-    this.done = true;
-  }
-}
-
 // ── Laser (hitscan) ───────────────────────────────────────────────────────────
 class Laser {
   private readonly _beam:  THREE.Mesh;
@@ -749,26 +501,20 @@ export class WeaponSystem {
   private _projectiles: Projectile[] = [];
   private _swings:      SwordSwing[] = [];
   private _explosions:  Explosion[] = [];
-  private _bearTraps:   BearTrap[] = [];
-  private _flashbangs:  Flashbang[] = [];
   private _lasers:      Laser[] = [];
   private _cooldown     = 0;
   private _freezeMap:   Map<Controllable, number> = new Map();
-  private _localPlayer: Controllable | null = null;
   private _ctxEntities:  Controllable[]  = [];
   private _ctxColliders: THREE.Box3[]    = [];
   private _ctxWalls:     THREE.Box3[]    = [];
 
-  flashIntensity = 0;   // 0–1; driven by flashbang detonation, decays each frame
+  flashIntensity = 0;
 
   get type()    { return this._type; }
   get canFire() { return this._cooldown <= 0; }
   get def()     { return DEFS[this._type]; }
 
   setWeapon(t: WeaponType) { this._type = t; this._cooldown = 0; }
-
-  /** Call once after the local player is created so traps know whose are visible. */
-  setLocalPlayer(p: Controllable) { this._localPlayer = p; }
 
   /** Call each frame before fire() so hitscan lasers can resolve hits. */
   setContext(entities: Controllable[], colliders: THREE.Box3[], walls: THREE.Box3[]) {
@@ -783,17 +529,6 @@ export class WeaponSystem {
          shooter: Controllable, weaponType: WeaponType) {
     const def = DEFS[weaponType];
     if (weaponType === "sword") return;
-    if (weaponType === "beartrap") {
-      const visible = this._localPlayer === null || (shooter as unknown) === (this._localPlayer as unknown);
-      this._bearTraps.push(new BearTrap(scene, origin, direction, shooter, this._freezeMap, visible));
-      return;
-    }
-    if (weaponType === "flashbang") {
-      this._flashbangs.push(new Flashbang(scene, origin, direction, shooter, (intensity) => {
-        this.flashIntensity = Math.max(this.flashIntensity, intensity);
-      }));
-      return;
-    }
     if (weaponType === "blaster") {
       this._lasers.push(new Laser(
         scene, origin, direction, def, shooter,
@@ -830,21 +565,6 @@ export class WeaponSystem {
       return;
     }
 
-    if (this._type === "beartrap") {
-      // Player firing their own trap — always visible to local player
-      this._bearTraps.push(new BearTrap(scene, origin, direction, shooter, this._freezeMap, true));
-      this._cooldown = def.cooldown;
-      return;
-    }
-
-    if (this._type === "flashbang") {
-      this._flashbangs.push(new Flashbang(scene, origin, direction, shooter, (intensity) => {
-        this.flashIntensity = Math.max(this.flashIntensity, intensity);
-      }));
-      this._cooldown = def.cooldown;
-      return;
-    }
-
     if (this._type === "blaster") {
       this._lasers.push(new Laser(
         scene, origin, direction, def, shooter,
@@ -874,7 +594,7 @@ export class WeaponSystem {
   }
 
   update(dt: number, _scene: THREE.Scene, shooter: Controllable, entities: Controllable[],
-         colliders: THREE.Box3[] = [], walls: THREE.Box3[] = [], groundY = 0) {
+         colliders: THREE.Box3[] = [], walls: THREE.Box3[] = []) {
     this._cooldown = Math.max(0, this._cooldown - dt);
 
     // Decay flash overlay
@@ -898,12 +618,6 @@ export class WeaponSystem {
 
     for (const ex of this._explosions) ex.update(dt);
     this._explosions = this._explosions.filter(ex => !ex.done);
-
-    for (const bt of this._bearTraps) bt.update(dt, entities, colliders, groundY);
-    this._bearTraps = this._bearTraps.filter(bt => !bt.done);
-
-    for (const fb of this._flashbangs) fb.update(dt, entities, colliders, groundY);
-    this._flashbangs = this._flashbangs.filter(fb => !fb.done);
 
     for (const l of this._lasers) l.update(dt);
     this._lasers = this._lasers.filter(l => !l.done);
