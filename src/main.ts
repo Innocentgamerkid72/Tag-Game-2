@@ -11,6 +11,7 @@ import { NetworkManager } from "./network";
 import { RemotePlayer } from "./remotePlayer";
 import type { NetMsg } from "./network";
 import { TMF_MAX_HP, TMF_MAX_LIVES } from "./modes/tomfooleryMode";
+import { setViewModelWeapon, renderViewModel } from "./weaponViewModel";
 
 // ── Renderer ──────────────────────────────────────────────────────────────────
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -447,7 +448,7 @@ function gameLoop() {
 
   if (!gameStarted) {
     renderer.render(scene, thirdPersonCam.camera);
-    return;
+    return; // no viewmodel before login
   }
 
   const map = roundManager.map;
@@ -704,7 +705,14 @@ function gameLoop() {
     for (const bar of tmfBars.values()) bar.sprite.visible = false;
   }
 
+  // Show weapon viewmodel when weapons are active and player isn't eliminated
+  setViewModelWeapon(weaponsActive && !player.isEliminated ? weapon.type : null);
+
+  renderer.autoClear = true;
   renderer.render(scene, thirdPersonCam.camera);
+  renderer.autoClear = false;
+  renderViewModel(renderer, window.innerWidth / window.innerHeight);
+  renderer.autoClear = true;
 }
 
 gameLoop();
