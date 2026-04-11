@@ -518,7 +518,7 @@ function gameLoop() {
     lastRoundId = roundManager.roundId;
     botGivenWeapons.clear();
     botFireTimers.clear();
-    weapon.setWeapon("rocket");
+    weapon.setWeapon("sword");
 
     // Host picks who is IT and broadcasts; non-host waits for setit.
     if (knownPeers.size > 0 && roundManager.mode.name !== "Tomfoolery") {

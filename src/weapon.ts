@@ -49,7 +49,7 @@ export const DEFS: Record<WeaponType, WeaponDef> = {
   },
 };
 
-export const WEAPON_ORDER: WeaponType[] = ["rocket", "freeze", "shotgun", "sword"];
+export const WEAPON_ORDER: WeaponType[] = ["sword", "rocket", "freeze", "shotgun"];
 
 // ── Explosion effect ──────────────────────────────────────────────────────────
 class Explosion {
