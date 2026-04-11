@@ -556,15 +556,35 @@ function gameLoop() {
     weaponHudEl.innerHTML = WEAPON_ORDER.map((w, i) => {
       const active = w === weapon.type;
       const col = WEAPON_COLORS[w];
-      const label = DEFS[w].name.split(" ")[0];
+      const def = DEFS[w];
+      const label = def.name.split(" ")[0];
       const keyNum = i + 1;
+
+      // Ammo / reload display (only for the active slot)
+      let ammoLine = "";
+      if (active && def.maxAmmo !== -1) {
+        const cur = weapon.ammo;
+        if (weapon.isReloading) {
+          const pct = Math.round(weapon.reloadProgress * 100);
+          const filled = Math.round(weapon.reloadProgress * 10);
+          const bar = "█".repeat(filled) + "░".repeat(10 - filled);
+          ammoLine = `<div style="font-size:10px;margin-top:3px;color:#ffcc44;">${bar} ${pct}%</div>`;
+        } else {
+          // Show pips for each ammo unit
+          const pips = "●".repeat(cur) + "○".repeat(def.maxAmmo - cur);
+          const outOfAmmo = cur === 0;
+          ammoLine = `<div style="font-size:10px;margin-top:3px;letter-spacing:1px;color:${outOfAmmo ? "#ff4444" : col};">${pips}</div>`;
+        }
+      }
+
       return `<div style="
         padding:6px 14px;font-family:monospace;font-size:13px;border-radius:6px;
         background:${active ? col + "33" : "rgba(0,0,0,0.45)"};
         border:2px solid ${active ? col : "rgba(255,255,255,0.2)"};
         color:${active ? col : "rgba(255,255,255,0.5)"};
         font-weight:${active ? "bold" : "normal"};
-      ">[${keyNum}] ${label}</div>`;
+        text-align:center;
+      ">[${keyNum}] ${label}${ammoLine}</div>`;
     }).join("");
   } else {
     weaponHudEl.innerHTML = "";
@@ -582,6 +602,7 @@ function gameLoop() {
     botGivenWeapons.clear();
     botFireTimers.clear();
     weapon.setWeapon("sword");
+    weapon.resetAmmo();
 
     // Create/destroy Tomfoolery health bars each round
     if (roundManager.mode.name === "Tomfoolery") {

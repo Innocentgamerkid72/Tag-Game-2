@@ -19,6 +19,9 @@ interface WeaponDef {
   freezeSec:   number;   // 0 = no freeze
   pellets:     number;   // >1 = shotgun spread
   spread:      number;   // radians half-angle
+  maxAmmo:     number;   // -1 = unlimited
+  reloadTime:  number;   // seconds to reload; 0 = instant (unlimited)
+  regenAmmo:   boolean;  // true = reload 1 ammo per reloadTime (shotgun style)
 }
 
 export const DEFS: Record<WeaponType, WeaponDef> = {
@@ -27,18 +30,21 @@ export const DEFS: Record<WeaponType, WeaponDef> = {
     size: 0.38, speed: 20, cooldown: 1.4, life: 4.0,
     gravity: -18, hitForce: 34, hitForceY: 22,
     splashRadius: 9, freezeSec: 0, pellets: 1, spread: 0,
+    maxAmmo: 1, reloadTime: 5, regenAmmo: false,
   },
   freeze: {
     name: "Freeze Ray", color: 0x44aaff, lightColor: 0x66ccff,
     size: 0.5, speed: 26, cooldown: 0.9, life: 3.0,
     gravity: 0, hitForce: 0, hitForceY: 0,
     splashRadius: 0, freezeSec: 3.0, pellets: 1, spread: 0,
+    maxAmmo: 5, reloadTime: 3, regenAmmo: false,
   },
   shotgun: {
     name: "Shotgun", color: 0xffee33, lightColor: 0xffdd00,
     size: 0.14, speed: 36, cooldown: 0.85, life: 0.6,
     gravity: 0, hitForce: 20, hitForceY: 6,
     splashRadius: 0, freezeSec: 0, pellets: 7, spread: 0.22,
+    maxAmmo: 9, reloadTime: 1, regenAmmo: true,
   },
   // sword is handled separately — not a projectile weapon
   sword: {
@@ -46,6 +52,7 @@ export const DEFS: Record<WeaponType, WeaponDef> = {
     size: 0, speed: 0, cooldown: 0.7, life: 0,
     gravity: 0, hitForce: 0, hitForceY: 0,
     splashRadius: 0, freezeSec: 0, pellets: 0, spread: 0,
+    maxAmmo: -1, reloadTime: 0, regenAmmo: false,
   },
 };
 
@@ -389,20 +396,64 @@ class SwordSwing {
 
 // ── Weapon system ─────────────────────────────────────────────────────────────
 export class WeaponSystem {
-  private _type:        WeaponType = "rocket";
+  private _type:        WeaponType = "sword";
   private _projectiles: Projectile[] = [];
   private _swings:      SwordSwing[] = [];
   private _explosions:  Explosion[] = [];
   private _cooldown     = 0;
   private _freezeMap:   Map<Controllable, number> = new Map();
 
+  // Ammo state — keyed per weapon so switching preserves ammo
+  private _ammo:        Map<WeaponType, number> = new Map();
+  private _reloadTimer: Map<WeaponType, number> = new Map();
+
   get type()    { return this._type; }
   get canFire() { return this._cooldown <= 0; }
   get def()     { return DEFS[this._type]; }
 
-  setWeapon(t: WeaponType) { this._type = t; this._cooldown = 0; }
+  /** Current ammo for the active weapon (-1 = unlimited). */
+  get ammo(): number {
+    const def = DEFS[this._type];
+    if (def.maxAmmo === -1) return -1;
+    return this._ammo.get(this._type) ?? def.maxAmmo;
+  }
 
-  /** Fire a specific weapon type without affecting current weapon or cooldown.
+  /** Reload progress 0–1 (1 = full / not reloading). */
+  get reloadProgress(): number {
+    const def = DEFS[this._type];
+    if (def.reloadTime === 0) return 1;
+    const t = this._reloadTimer.get(this._type) ?? 0;
+    if (t <= 0) return 1;
+    return 1 - t / def.reloadTime;
+  }
+
+  /** True while the current weapon is reloading. */
+  get isReloading(): boolean {
+    const def = DEFS[this._type];
+    if (def.reloadTime === 0 || def.maxAmmo === -1) return false;
+    return (this._reloadTimer.get(this._type) ?? 0) > 0;
+  }
+
+  setWeapon(t: WeaponType) {
+    this._type = t;
+    this._cooldown = 0;
+    // Initialise ammo for this weapon if not seen before
+    const def = DEFS[t];
+    if (def.maxAmmo !== -1 && !this._ammo.has(t)) {
+      this._ammo.set(t, def.maxAmmo);
+    }
+  }
+
+  /** Refill all ammo (called at round start). */
+  resetAmmo() {
+    this._ammo.clear();
+    this._reloadTimer.clear();
+    for (const [t, def] of Object.entries(DEFS) as [WeaponType, WeaponDef][]) {
+      if (def.maxAmmo !== -1) this._ammo.set(t, def.maxAmmo);
+    }
+  }
+
+  /** Fire a specific weapon type without affecting current weapon, cooldown, or ammo.
    *  Used by the admin panel to shoot from bot/player positions. */
   fireAs(scene: THREE.Scene, origin: THREE.Vector3, direction: THREE.Vector3,
          _shooter: Controllable, weaponType: WeaponType) {
@@ -431,10 +482,27 @@ export class WeaponSystem {
     if (this._cooldown > 0) return;
     const def = DEFS[this._type];
 
+    // Sword — unlimited, no ammo check
     if (this._type === "sword") {
       this._swings.push(new SwordSwing(scene, origin, direction));
       this._cooldown = def.cooldown;
       return;
+    }
+
+    // Ammo check
+    if (def.maxAmmo !== -1) {
+      const current = this._ammo.get(this._type) ?? def.maxAmmo;
+      if (current <= 0) return; // out of ammo, can't fire
+      this._ammo.set(this._type, current - 1);
+      // Start reload if now empty (non-regen) or always queue next regen tick
+      if (!def.regenAmmo && current - 1 === 0) {
+        this._reloadTimer.set(this._type, def.reloadTime);
+      } else if (def.regenAmmo) {
+        // Regen: only start timer if not already ticking
+        if ((this._reloadTimer.get(this._type) ?? 0) <= 0) {
+          this._reloadTimer.set(this._type, def.reloadTime);
+        }
+      }
     }
 
     if (def.pellets === 1) {
@@ -460,6 +528,30 @@ export class WeaponSystem {
          colliders: THREE.Box3[] = [], walls: THREE.Box3[] = []) {
     this._cooldown = Math.max(0, this._cooldown - dt);
 
+    // ── Ammo reload timers ────────────────────────────────────────────────────
+    for (const [t, timer] of this._reloadTimer) {
+      if (timer <= 0) continue;
+      const def = DEFS[t];
+      const next = timer - dt;
+      if (next <= 0) {
+        if (def.regenAmmo) {
+          // Regen one ammo pack
+          const cur = this._ammo.get(t) ?? 0;
+          const filled = Math.min(cur + 1, def.maxAmmo);
+          this._ammo.set(t, filled);
+          // Keep ticking until full
+          this._reloadTimer.set(t, filled < def.maxAmmo ? def.reloadTime : 0);
+        } else {
+          // Full reload — restore all ammo
+          this._ammo.set(t, def.maxAmmo);
+          this._reloadTimer.set(t, 0);
+        }
+      } else {
+        this._reloadTimer.set(t, next);
+      }
+    }
+
+    // ── Freeze timers ─────────────────────────────────────────────────────────
     for (const [e, t] of this._freezeMap) {
       const remaining = t - dt;
       if (remaining <= 0) {
