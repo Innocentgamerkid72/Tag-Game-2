@@ -139,7 +139,7 @@ const modeEl     = document.getElementById("mode-name")!;
 const statusEl   = document.getElementById("mode-status")!;
 const coordsEl   = document.getElementById("coords")!;
 const overlayEl   = document.getElementById("transition-overlay")!;
-const flashEl     = document.getElementById("flash-overlay") as HTMLDivElement;
+
 const weaponHudEl = document.getElementById("weapon-hud")!;
 
 // ── Teleporter timer sprite ───────────────────────────────────────────────────
@@ -469,13 +469,10 @@ function gameLoop() {
   // Weapons are active in Tomfoolery, when admin gave one, or when player is the hunter
   const weaponsActive = isTomfoolery || adminGiveUsedRound === roundManager.roundId || playerIsHunter;
 
-  // Provide current-frame context so hitscan weapons (laser) can resolve hits
-  weapon.setContext(allEntities, colliders, walls);
-
   if (weaponsActive) {
     {
       // Weapon switching — keys 1-5
-      const weaponKeys = ["Digit1", "Digit2", "Digit3", "Digit4", "Digit5"];
+      const weaponKeys = ["Digit1", "Digit2", "Digit3", "Digit4"];
       for (let i = 0; i < weaponKeys.length; i++) {
         if (input.isDown(weaponKeys[i])) weapon.setWeapon(WEAPON_ORDER[i]);
       }
@@ -491,8 +488,7 @@ function gameLoop() {
 
     // Weapon HUD
     const WEAPON_COLORS: Record<string, string> = {
-      blaster: "#ff6600", rocket: "#ff2200", freeze: "#44aaff", shotgun: "#ffee33",
-      sword: "#aaddff",
+      rocket: "#ff2200", freeze: "#44aaff", shotgun: "#ffee33", sword: "#aaddff",
     };
     weaponHudEl.innerHTML = WEAPON_ORDER.map((w, i) => {
       const active = w === weapon.type;
@@ -522,7 +518,7 @@ function gameLoop() {
     lastRoundId = roundManager.roundId;
     botGivenWeapons.clear();
     botFireTimers.clear();
-    weapon.setWeapon("blaster");
+    weapon.setWeapon("rocket");
 
     // Host picks who is IT and broadcasts; non-host waits for setit.
     if (knownPeers.size > 0 && roundManager.mode.name !== "Tomfoolery") {
@@ -603,9 +599,6 @@ function gameLoop() {
   const p = player.position;
   coordsEl.textContent = `x:${p.x.toFixed(1)}  y:${p.y.toFixed(1)}  z:${p.z.toFixed(1)}  ${input.pointerLocked ? "" : "[click to capture mouse]"}`;
 
-
-  // Flashbang screen overlay
-  flashEl.style.opacity = String(weapon.flashIntensity.toFixed(3));
 
   renderer.render(scene, thirdPersonCam.camera);
 }

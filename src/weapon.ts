@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { Controllable } from "./types";
 
 // ── Per-weapon config ─────────────────────────────────────────────────────────
-export type WeaponType = "blaster" | "rocket" | "freeze" | "shotgun" | "sword";
+export type WeaponType = "rocket" | "freeze" | "shotgun" | "sword";
 
 interface WeaponDef {
   name:        string;
@@ -22,12 +22,6 @@ interface WeaponDef {
 }
 
 export const DEFS: Record<WeaponType, WeaponDef> = {
-  blaster: {
-    name: "Laser Gun", color: 0xff6600, lightColor: 0xff8833,
-    size: 0, speed: 0, cooldown: 0.1, life: 0,
-    gravity: 0, hitForce: 60, hitForceY: 20,
-    splashRadius: 0, freezeSec: 2.0, pellets: 1, spread: 0,
-  },
   rocket: {
     name: "Rocket", color: 0xff2200, lightColor: 0xff4400,
     size: 0.38, speed: 20, cooldown: 1.4, life: 4.0,
@@ -55,7 +49,7 @@ export const DEFS: Record<WeaponType, WeaponDef> = {
   },
 };
 
-export const WEAPON_ORDER: WeaponType[] = ["blaster", "rocket", "freeze", "shotgun", "sword"];
+export const WEAPON_ORDER: WeaponType[] = ["rocket", "freeze", "shotgun", "sword"];
 
 // ── Explosion effect ──────────────────────────────────────────────────────────
 class Explosion {
@@ -393,122 +387,14 @@ class SwordSwing {
   }
 }
 
-// ── Laser (hitscan) ───────────────────────────────────────────────────────────
-class Laser {
-  private readonly _beam:  THREE.Mesh;
-  private readonly _light: THREE.PointLight;
-  private _life = 0.12;
-  done = false;
-
-  constructor(
-    private readonly _scene: THREE.Scene,
-    origin: THREE.Vector3,
-    direction: THREE.Vector3,
-    def: WeaponDef,
-    shooter: Controllable,
-    entities: Controllable[],
-    colliders: THREE.Box3[],
-    walls: THREE.Box3[],
-    freezeMap: Map<Controllable, number>,
-  ) {
-    const dir = direction.clone().normalize();
-    const ray = new THREE.Ray(origin, dir);
-
-    // Max distance blocked by geometry
-    let maxDist = 80;
-    const boxHit = new THREE.Vector3();
-    for (const box of [...colliders, ...walls]) {
-      if (ray.intersectBox(box, boxHit) !== null) {
-        const d = origin.distanceTo(boxHit);
-        if (d < maxDist) maxDist = d;
-      }
-    }
-
-    // Closest entity in beam path
-    const bodyCenter = (e: Controllable) =>
-      new THREE.Vector3(e.position.x, e.position.y + 0.9, e.position.z);
-    let hitEntity: Controllable | null = null;
-    let hitDist = maxDist;
-    const closestPt = new THREE.Vector3();
-
-    for (const e of entities) {
-      if ((e as unknown) === (shooter as unknown) || e.isEliminated) continue;
-      ray.closestPointToPoint(bodyCenter(e), closestPt);
-      if (closestPt.distanceTo(bodyCenter(e)) > 0.65) continue;
-      const d = origin.distanceTo(closestPt);
-      if (d < hitDist) { hitDist = d; hitEntity = e; }
-    }
-
-    if (hitEntity) {
-      const push = new THREE.Vector3(
-        hitEntity.position.x - origin.x, 0, hitEntity.position.z - origin.z,
-      );
-      if (push.length() > 0) push.normalize();
-      if (def.hitForce > 0) {
-        hitEntity.velocity.x    += push.x * def.hitForce;
-        hitEntity.velocity.z    += push.z * def.hitForce;
-        hitEntity.velocity.y     = Math.max(hitEntity.velocity.y, def.hitForceY);
-        hitEntity.knockbackTimer = 0.55;
-        hitEntity.tagImmunity    = Math.max(hitEntity.tagImmunity, 0.55);
-      }
-      if (def.freezeSec > 0) {
-        hitEntity.setFrozen(true);
-        freezeMap.set(hitEntity, def.freezeSec);
-      }
-    }
-
-    // Visual beam: cylinder from origin to impact
-    const beamLength = Math.max(0.1, hitDist);
-    const mid = origin.clone().addScaledVector(dir, beamLength * 0.5);
-
-    this._beam = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.025, 0.025, beamLength, 5),
-      new THREE.MeshBasicMaterial({ color: def.color, transparent: true, opacity: 1 }),
-    );
-    this._beam.position.copy(mid);
-    // CylinderGeometry is Y-up; rotate to align with direction
-    const up = new THREE.Vector3(0, 1, 0);
-    if (Math.abs(dir.dot(up)) < 0.9999) {
-      this._beam.quaternion.setFromUnitVectors(up, dir);
-    } else if (dir.y < 0) {
-      this._beam.rotation.z = Math.PI;
-    }
-    _scene.add(this._beam);
-
-    // Muzzle light at origin
-    this._light = new THREE.PointLight(def.lightColor, 5, 8);
-    this._light.position.copy(origin);
-    _scene.add(this._light);
-  }
-
-  update(dt: number) {
-    if (this.done) return;
-    this._life -= dt;
-    if (this._life <= 0) {
-      this._scene.remove(this._beam, this._light);
-      this.done = true;
-      return;
-    }
-    const fade = this._life / 0.12;
-    (this._beam.material as THREE.MeshBasicMaterial).opacity = fade;
-    this._light.intensity = 5 * fade;
-  }
-}
-
 // ── Weapon system ─────────────────────────────────────────────────────────────
 export class WeaponSystem {
-  private _type:        WeaponType = "blaster";
+  private _type:        WeaponType = "rocket";
   private _projectiles: Projectile[] = [];
   private _swings:      SwordSwing[] = [];
   private _explosions:  Explosion[] = [];
-  private _lasers:      Laser[] = [];
   private _cooldown     = 0;
   private _freezeMap:   Map<Controllable, number> = new Map();
-  private _ctxEntities:  Controllable[]  = [];
-  private _ctxColliders: THREE.Box3[]    = [];
-  private _ctxWalls:     THREE.Box3[]    = [];
-
-  flashIntensity = 0;
 
   get type()    { return this._type; }
   get canFire() { return this._cooldown <= 0; }
@@ -516,26 +402,12 @@ export class WeaponSystem {
 
   setWeapon(t: WeaponType) { this._type = t; this._cooldown = 0; }
 
-  /** Call each frame before fire() so hitscan lasers can resolve hits. */
-  setContext(entities: Controllable[], colliders: THREE.Box3[], walls: THREE.Box3[]) {
-    this._ctxEntities  = entities;
-    this._ctxColliders = colliders;
-    this._ctxWalls     = walls;
-  }
-
   /** Fire a specific weapon type without affecting current weapon or cooldown.
    *  Used by the admin panel to shoot from bot/player positions. */
   fireAs(scene: THREE.Scene, origin: THREE.Vector3, direction: THREE.Vector3,
-         shooter: Controllable, weaponType: WeaponType) {
-    const def = DEFS[weaponType];
+         _shooter: Controllable, weaponType: WeaponType) {
     if (weaponType === "sword") return;
-    if (weaponType === "blaster") {
-      this._lasers.push(new Laser(
-        scene, origin, direction, def, shooter,
-        this._ctxEntities, this._ctxColliders, this._ctxWalls, this._freezeMap,
-      ));
-      return;
-    }
+    const def = DEFS[weaponType];
     if (def.pellets === 1) {
       const p = new Projectile(scene, origin, direction, def);
       if (weaponType === "rocket") {
@@ -555,21 +427,12 @@ export class WeaponSystem {
   }
 
   fire(scene: THREE.Scene, origin: THREE.Vector3, direction: THREE.Vector3,
-       shooter: Controllable) {
+       _shooter: Controllable) {
     if (this._cooldown > 0) return;
     const def = DEFS[this._type];
 
     if (this._type === "sword") {
       this._swings.push(new SwordSwing(scene, origin, direction));
-      this._cooldown = def.cooldown;
-      return;
-    }
-
-    if (this._type === "blaster") {
-      this._lasers.push(new Laser(
-        scene, origin, direction, def, shooter,
-        this._ctxEntities, this._ctxColliders, this._ctxWalls, this._freezeMap,
-      ));
       this._cooldown = def.cooldown;
       return;
     }
@@ -597,9 +460,6 @@ export class WeaponSystem {
          colliders: THREE.Box3[] = [], walls: THREE.Box3[] = []) {
     this._cooldown = Math.max(0, this._cooldown - dt);
 
-    // Decay flash overlay
-    this.flashIntensity = Math.max(0, this.flashIntensity - dt * 1.8);
-
     for (const [e, t] of this._freezeMap) {
       const remaining = t - dt;
       if (remaining <= 0) {
@@ -618,8 +478,5 @@ export class WeaponSystem {
 
     for (const ex of this._explosions) ex.update(dt);
     this._explosions = this._explosions.filter(ex => !ex.done);
-
-    for (const l of this._lasers) l.update(dt);
-    this._lasers = this._lasers.filter(l => !l.done);
   }
 }
