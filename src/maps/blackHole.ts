@@ -1,10 +1,11 @@
 import * as THREE from "three";
 import { Controllable } from "../types";
+import { GRAVITY } from "../physics";
 
-const PULL_RADIUS    = 10;   // units — start being pulled
-const CAPTURE_RADIUS = 2.0;  // units — captured and held
-const HOLD_DURATION  = 5;    // seconds held before fling
-const FLING_FORCE    = 30;   // units/s of fling velocity
+const PULL_RADIUS    = 8.0;  // units — start being pulled
+const CAPTURE_RADIUS = 2.2;  // units — captured and held
+const HOLD_DURATION  = 3;    // seconds held before fling
+const FLING_FORCE    = 28;   // units/s of fling velocity
 const PATROL_SPEED   = 2.5;  // units/s along patrol path
 
 export class BlackHole {
@@ -107,7 +108,14 @@ export class BlackHole {
           bPos.y + Math.sin(angle * 0.6) * 0.5,
           bPos.z + Math.sin(angle) * 1.2
         );
-        e.velocity.set(0, 0, 0);
+
+        // Pre-cancel the gravity that player.update will apply next frame
+        // (velocity.y += GRAVITY*dt). This prevents downward drift and stops
+        // _resolvePlatforms from snapping the captured entity to platforms
+        // (which triggers only when velocity.y <= 0).
+        e.velocity.set(0, -GRAVITY * dt, 0);
+        e.tagImmunity = Math.max(e.tagImmunity, 0.15); // prevent tagging while held
+        e.knockbackTimer = 0.15; // prevent input fighting the hold
 
         if (held >= HOLD_DURATION) {
           // ── Fling! ────────────────────────────────────────────────────
@@ -120,10 +128,11 @@ export class BlackHole {
             .normalize();
           // Guarantee a meaningful upward component even if the orbit
           // happened to be nearly horizontal.
-          flingDir.y = Math.max(flingDir.y, 0.4);
+          flingDir.y = Math.max(flingDir.y, 0.45);
           flingDir.normalize();
           e.velocity.copy(flingDir.multiplyScalar(FLING_FORCE));
           e.tagImmunity = Math.max(e.tagImmunity, 2.5); // brief immunity post-fling
+          e.knockbackTimer = 0.6;
         }
 
       } else {
@@ -133,16 +142,23 @@ export class BlackHole {
           // ── Capture ───────────────────────────────────────────────────
           this._captured.set(e, 0);
           e.setFrozen(true);
-          e.velocity.set(0, 0, 0);
+          e.velocity.set(0, -GRAVITY * dt, 0);
 
-        } else if (dist < PULL_RADIUS) {
+        } else if (dist < PULL_RADIUS && !this._isHeldByOther(e)) {
           // ── Gravitational pull (quadratic falloff — much stronger near center) ─
-          const t       = 1 - dist / PULL_RADIUS;
+          const t        = 1 - dist / PULL_RADIUS;
           const strength = t * t * 26;
           const pullDir  = new THREE.Vector3().subVectors(bPos, e.position).normalize();
           e.velocity.addScaledVector(pullDir, strength * dt);
         }
       }
     }
+  }
+
+  /** True if this entity is currently held by any black hole (frozen by capture). */
+  private _isHeldByOther(e: Controllable): boolean {
+    // If the entity is frozen and we didn't capture it, another BH must have.
+    // Don't apply pull — it would fight the other BH's orbit.
+    return e.isFrozen;
   }
 }
