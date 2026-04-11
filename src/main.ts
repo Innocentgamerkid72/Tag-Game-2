@@ -10,6 +10,7 @@ import type { WeaponType } from "./weapon";
 import { NetworkManager } from "./network";
 import { RemotePlayer } from "./remotePlayer";
 import type { NetMsg } from "./network";
+import { TMF_MAX_HP, TMF_MAX_LIVES } from "./modes/tomfooleryMode";
 
 // ── Renderer ──────────────────────────────────────────────────────────────────
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -45,6 +46,67 @@ player.position.set(0, 2, 8);
 const thirdPersonCam = new ThirdPersonCamera();
 const input = new InputHandler(renderer.domElement);
 const weapon = new WeaponSystem();
+
+// ── Tomfoolery world-space health bars ───────────────────────────────────────
+interface TmfBar { sprite: THREE.Sprite; canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D; tex: THREE.CanvasTexture; lastHp: number; lastLives: number; }
+const tmfBars = new Map<Controllable, TmfBar>();
+
+function _makeTmfBar(): TmfBar {
+  const canvas = document.createElement("canvas");
+  canvas.width = 128; canvas.height = 32;
+  const ctx = canvas.getContext("2d")!;
+  const tex = new THREE.CanvasTexture(canvas);
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(1.8, 0.45, 1);
+  scene.add(sprite);
+  return { sprite, canvas, ctx, tex, lastHp: -1, lastLives: -1 };
+}
+
+function _drawTmfBar(bar: TmfBar, hp: number, lives: number) {
+  const { ctx, canvas, tex } = bar;
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+  // HP bar background
+  ctx.fillStyle = "#222";
+  ctx.beginPath(); ctx.roundRect(0, 0, W, 16, 3); ctx.fill();
+  // HP bar fill
+  const t = Math.max(0, hp / TMF_MAX_HP);
+  ctx.fillStyle = t > 0.5 ? "#44ff44" : t > 0.25 ? "#ffcc00" : "#ff3300";
+  ctx.beginPath(); ctx.roundRect(0, 0, Math.max(2, W * t), 16, 3); ctx.fill();
+  // HP label
+  ctx.fillStyle = "#fff";
+  ctx.font = "bold 10px monospace";
+  ctx.textAlign = "center";
+  ctx.fillText(`${hp}`, W / 2, 11);
+  // Hearts row
+  const heartSize = 13;
+  const totalW = TMF_MAX_LIVES * (heartSize + 2);
+  let hx = (W - totalW) / 2;
+  for (let i = 0; i < TMF_MAX_LIVES; i++) {
+    ctx.fillStyle = i < lives ? "#ff3355" : "#444";
+    ctx.font = `${heartSize}px monospace`;
+    ctx.textAlign = "left";
+    ctx.fillText("♥", hx, 30);
+    hx += heartSize + 2;
+  }
+  tex.needsUpdate = true;
+  bar.lastHp = hp; bar.lastLives = lives;
+}
+
+function createTmfBars(entities: Controllable[]) {
+  destroyTmfBars();
+  for (const e of entities) {
+    const bar = _makeTmfBar();
+    _drawTmfBar(bar, e.hp, e.lives);
+    tmfBars.set(e, bar);
+  }
+}
+
+function destroyTmfBars() {
+  for (const bar of tmfBars.values()) scene.remove(bar.sprite);
+  tmfBars.clear();
+}
 
 // ── Networking ────────────────────────────────────────────────────────────────
 const network = new NetworkManager();
@@ -520,6 +582,13 @@ function gameLoop() {
     botFireTimers.clear();
     weapon.setWeapon("sword");
 
+    // Create/destroy Tomfoolery health bars each round
+    if (roundManager.mode.name === "Tomfoolery") {
+      createTmfBars(localEntities);
+    } else {
+      destroyTmfBars();
+    }
+
     // Host picks who is IT and broadcasts; non-host waits for setit.
     if (knownPeers.size > 0 && roundManager.mode.name !== "Tomfoolery") {
       const allIds = [network.peerId, ...knownPeers].sort();
@@ -599,6 +668,41 @@ function gameLoop() {
   const p = player.position;
   coordsEl.textContent = `x:${p.x.toFixed(1)}  y:${p.y.toFixed(1)}  z:${p.z.toFixed(1)}  ${input.pointerLocked ? "" : "[click to capture mouse]"}`;
 
+  // ── Tomfoolery HUD + world-space bars ─────────────────────────────────────
+  const tmfHudEl  = document.getElementById("tmf-hud")!;
+  const tmfLivesEl = document.getElementById("tmf-lives")!;
+  const tmfHpBar   = document.getElementById("tmf-hp-bar") as HTMLDivElement;
+  const tmfHpText  = document.getElementById("tmf-hp-text")!;
+
+  if (isTomfoolery) {
+    tmfHudEl.style.display = "block";
+    const lpc = player as unknown as Controllable;
+    const hp    = Math.max(0, lpc.hp);
+    const lives = Math.max(0, lpc.lives);
+    const pct   = Math.round((hp / TMF_MAX_HP) * 100);
+    // Hearts
+    tmfLivesEl.textContent = "♥".repeat(lives) + "♡".repeat(Math.max(0, TMF_MAX_LIVES - lives));
+    tmfLivesEl.style.color = lives >= 2 ? "#ff3355" : lives === 1 ? "#ff8800" : "#666";
+    // HP bar
+    tmfHpBar.style.width   = `${pct}%`;
+    tmfHpBar.style.background = pct > 50 ? "#44ff44" : pct > 25 ? "#ffcc00" : "#ff3300";
+    tmfHpText.textContent  = `${hp} / ${TMF_MAX_HP} HP`;
+
+    // World-space bars above each local entity
+    for (const [e, bar] of tmfBars) {
+      if (e.hp !== bar.lastHp || e.lives !== bar.lastLives) {
+        _drawTmfBar(bar, e.hp, e.lives);
+      }
+      bar.sprite.visible = !e.isEliminated;
+      if (!e.isEliminated) {
+        bar.sprite.position.set(e.position.x, e.position.y + 2.5, e.position.z);
+      }
+    }
+  } else {
+    tmfHudEl.style.display = "none";
+    // Hide all bars if mode switched away
+    for (const bar of tmfBars.values()) bar.sprite.visible = false;
+  }
 
   renderer.render(scene, thirdPersonCam.camera);
 }

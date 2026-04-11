@@ -93,7 +93,7 @@ class ExplosiveBarrel {
   }
 
   private _explode(entities: Controllable[]) {
-    // Knockback all nearby entities
+    // Knockback + HP damage all nearby entities
     for (const e of entities) {
       if (e.isEliminated) continue;
       const dist = e.position.distanceTo(this._pos);
@@ -108,6 +108,9 @@ class ExplosiveBarrel {
       e.velocity.y     = Math.max(e.velocity.y, BARREL_FORCE_Y * falloff);
       e.knockbackTimer = 0.6;
       e.tagImmunity    = Math.max(e.tagImmunity, 0.6);
+      // Deal HP damage (30 at point-blank, falls off with distance)
+      e.hp = Math.max(0, e.hp - Math.round(30 * falloff));
+      if (e.hp <= 0 && !e.isEliminated) e.setEliminated(true);
     }
 
     // Visual flash

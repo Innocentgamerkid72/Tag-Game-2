@@ -10,6 +10,8 @@ export interface Controllable {
   isHuman: boolean;
   speedBoost: number;
   knockbackTimer: number;
+  hp: number;
+  lives: number;
   setIt(v: boolean): void;
   setFrozen(frozen: boolean): void;
   setEliminated(v: boolean): void;

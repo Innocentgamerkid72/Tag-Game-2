@@ -18,6 +18,8 @@ export class RemotePlayer implements Controllable {
   isHuman      = true;
   speedBoost   = 1;
   knockbackTimer = 0;
+  hp    = 100;
+  lives = 3;
 
   readonly peerId: string;
 

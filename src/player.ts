@@ -19,6 +19,8 @@ export class Player {
   isHuman      = true;
   speedBoost   = 1;
   knockbackTimer = 0;
+  hp    = 100;
+  lives = 3;
 
   /** Horizontal look angle (yaw) in radians. */
   yaw = 0;

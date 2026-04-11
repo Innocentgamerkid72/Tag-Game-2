@@ -43,6 +43,8 @@ export class Bot {
   isHuman      = false;
   speedBoost     = 1;
   knockbackTimer = 0;
+  hp    = 100;
+  lives = 3;
 
   private _baseColor  : number;
   private _body        : THREE.Mesh;
