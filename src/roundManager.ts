@@ -16,7 +16,7 @@ import { buildTomfooleryMap } from "./maps/tomfooleryMap";
 import { setGravity } from "./physics";
 
 const ROUND_TIME = 60;
-const TRANSITION_TIME = 10; // longer so admin has time to pick
+const TRANSITION_TIME = 5;
 const HUMAN_PLAYERS = 1;
 const BOT_NAMES = ["Alpha", "Bravo", "Charlie"];
 
