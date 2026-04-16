@@ -206,6 +206,32 @@ export function buildTestMap(scene: THREE.Scene): MapResult {
   addPlatform( 0,  9,   0,  4,   0.4, 4,   0xcc9944);
   addPlatform( 0, 12,   0,  2.5, 0.4, 2.5, 0xffbb55);
 
+  // Gap-fill: between Ring 1 cardinal and Ring 2 diagonal (y=3)
+  addPlatform(-10,  3,  -5,  3, 0.4, 3, 0x779944);
+  addPlatform( 10,  3,  -5,  3, 0.4, 3, 0x779944);
+  addPlatform(-10,  3,   5,  3, 0.4, 3, 0x779944);
+  addPlatform( 10,  3,   5,  3, 0.4, 3, 0x779944);
+  addPlatform( -5,  3, -10,  3, 0.4, 3, 0x779944);
+  addPlatform(  5,  3, -10,  3, 0.4, 3, 0x779944);
+  addPlatform( -5,  3,  10,  3, 0.4, 3, 0x779944);
+  addPlatform(  5,  3,  10,  3, 0.4, 3, 0x779944);
+
+  // Mid fill: between Ring 2 diagonal and outer ledges (y=5)
+  addPlatform(-14,  5,  -9,  3, 0.4, 3, 0x6677aa);
+  addPlatform( 14,  5,  -9,  3, 0.4, 3, 0x6677aa);
+  addPlatform(-14,  5,   9,  3, 0.4, 3, 0x6677aa);
+  addPlatform( 14,  5,   9,  3, 0.4, 3, 0x6677aa);
+  addPlatform( -9,  5, -14,  3, 0.4, 3, 0x6677aa);
+  addPlatform(  9,  5, -14,  3, 0.4, 3, 0x6677aa);
+  addPlatform( -9,  5,  14,  3, 0.4, 3, 0x6677aa);
+  addPlatform(  9,  5,  14,  3, 0.4, 3, 0x6677aa);
+
+  // Upper ring between Ring 3 (y=6) and tower (y=9)
+  addPlatform(-10,  7,   0,  3, 0.4, 3, 0x9966cc);
+  addPlatform( 10,  7,   0,  3, 0.4, 3, 0x9966cc);
+  addPlatform(  0,  7, -10,  3, 0.4, 3, 0x9966cc);
+  addPlatform(  0,  7,  10,  3, 0.4, 3, 0x9966cc);
+
   // ── Ground-level walls (cover obstacles) ─────────────────────────────────────
 
   // Center cluster — creates a small maze near the ground teleporter

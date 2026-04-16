@@ -69,8 +69,8 @@ export const DEFS: Record<WeaponType, WeaponDef> = {
     maxAmmo: 9, reloadTime: 1, regenAmmo: true,
   },
   blaster: {
-    name: "Blaster", color: 0xff6600, lightColor: 0xff8800,
-    size: 0.16, speed: 45, cooldown: 0.18, life: 2.0,
+    name: "Blaster", color: 0x00ff44, lightColor: 0x44ff88,
+    size: 0.16, speed: 70, cooldown: 0.18, life: 2.0,
     gravity: 0, hitForce: 28, hitForceY: 10,
     splashRadius: 0, freezeSec: 0, pellets: 1, spread: 0,
     maxAmmo: 6, reloadTime: 1.5, regenAmmo: false,

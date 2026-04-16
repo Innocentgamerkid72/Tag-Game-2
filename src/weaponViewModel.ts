@@ -122,12 +122,12 @@ function buildBlaster(): THREE.Group {
   const body = _box(0.1, 0.08, 0.22, 0x1a2e1a);
   body.position.set(0, 0, 0.1);
   g.add(body);
-  // Energy cell (glowing orange)
-  const cell = _sphere(0.045, 0xff6600);
+  // Energy cell (glowing green)
+  const cell = _sphere(0.045, 0x00ff44);
   cell.position.set(0, 0.01, 0.22);
   g.add(cell);
   // Inner glow
-  const glow = _sphere(0.028, 0xff9900);
+  const glow = _sphere(0.028, 0x88ffaa);
   glow.position.set(0, 0.01, 0.22);
   g.add(glow);
   // Grip

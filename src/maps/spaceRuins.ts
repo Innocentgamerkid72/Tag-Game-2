@@ -150,6 +150,32 @@ export function buildSpaceRuins(scene: THREE.Scene): MapResult {
   addPlatform(  9, 15,   9,  3, 0.5, 3, 0x665566);
   addPlatform(  0, 18,   0,  3, 0.5, 3, 0x778899);
 
+  // ── Extra platforms — fill gaps between tiers ────────────────────────────────
+  // Low-to-mid stepping stones (y=4) — diagonal corners and cardinals
+  addPlatform( -5,  4,  -5,  3, 0.5, 3, 0x3a3a66);
+  addPlatform(  5,  4,  -5,  3, 0.5, 3, 0x3a3a66);
+  addPlatform( -5,  4,   5,  3, 0.5, 3, 0x3a3a66);
+  addPlatform(  5,  4,   5,  3, 0.5, 3, 0x3a3a66);
+  addPlatform( -9,  4,   0,  3, 0.5, 3, 0x3a4466);
+  addPlatform(  9,  4,   0,  3, 0.5, 3, 0x3a4466);
+  addPlatform(  0,  4, -11,  3, 0.5, 3, 0x3a4466);
+  addPlatform(  0,  4,  11,  3, 0.5, 3, 0x3a4466);
+  // Diagonal mid-level (y=7) — fills the empty corners between mid-tier pads
+  addPlatform( -9,  7,  -9,  3, 0.5, 3, 0x445566);
+  addPlatform(  9,  7,   9,  3, 0.5, 3, 0x445566);
+  addPlatform( -9,  7,   9,  3, 0.5, 3, 0x445566);
+  addPlatform(  9,  7,  -9,  3, 0.5, 3, 0x445566);
+  // Outer mid (y=6) — far platforms off the ±16 axis
+  addPlatform(-18,  6,   8,  3, 0.5, 3, 0x334455);
+  addPlatform( 18,  6,  -8,  3, 0.5, 3, 0x334455);
+  addPlatform(  8,  6,  18,  3, 0.5, 3, 0x334455);
+  addPlatform( -8,  6, -18,  3, 0.5, 3, 0x334455);
+  // High-tier extras (y=13) — diagonal stepping stones up to apex
+  addPlatform( -5, 13,  -5,  3, 0.5, 3, 0x556688);
+  addPlatform(  5, 13,   5,  3, 0.5, 3, 0x556688);
+  addPlatform( -5, 13,   5,  3, 0.5, 3, 0x556688);
+  addPlatform(  5, 13,  -5,  3, 0.5, 3, 0x556688);
+
   // ── Walls on some platforms ──────────────────────────────────────────────────
   // Walls on center low platform
   addWall(  0, 2.5, -3.0,  5, 1.5, 0.3, 0x445566);

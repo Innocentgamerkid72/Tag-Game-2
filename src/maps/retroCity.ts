@@ -140,6 +140,41 @@ export function buildRetroCity(scene: THREE.Scene): MapResult {
   addBuilding(  0,  -24, 8,  7, 5, 0x2e2e1e);
   addBuilding(  0,   24, 6, 10, 6, 0x1e2e2e);
 
+  // ── Additional buildings (interior fill) ────────────────────────────────────
+  addBuilding( -8,  -16, 4,  5, 4, 0x1e1e2e);
+  addBuilding(  8,  -16, 4,  7, 4, 0x222233);
+  addBuilding(-16,    8, 4,  6, 4, 0x1e2820);
+  addBuilding( 16,   -8, 4,  8, 4, 0x20201e);
+
+  // ── Scaffolding / billboard ledges (walkable mid-height platforms) ───────────
+  // These are thin elevated boxes — not full buildings, just extra traversal
+  function addLedge(x: number, h: number, z: number, w: number, d: number) {
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(w, 0.3, d),
+      new THREE.MeshLambertMaterial({ color: 0x2a2a44 })
+    );
+    mesh.position.set(x, h, z);
+    mesh.castShadow = true;
+    add(mesh);
+    colliders.push(new THREE.Box3(
+      new THREE.Vector3(x - w / 2, h - 0.15, z - d / 2),
+      new THREE.Vector3(x + w / 2, h + 0.15, z + d / 2)
+    ));
+  }
+  addLedge(-10,  4,   0, 3, 3);
+  addLedge( 10,  5,   0, 3, 3);
+  addLedge(  0,  4,  10, 3, 3);
+  addLedge(  0,  5, -10, 3, 3);
+  addLedge(-16,  5,  -8, 3, 3);
+  addLedge( 16,  5,   8, 3, 3);
+  addLedge( -8,  4,  16, 3, 3);
+  addLedge(  8,  4, -16, 3, 3);
+  // Mid-height cross-bridges between building clusters
+  addLedge(-12,  6,  -4, 5, 2);
+  addLedge( 12,  6,   4, 5, 2);
+  addLedge( -4,  6,  12, 2, 5);
+  addLedge(  4,  6, -12, 2, 5);
+
   // ── Parked cars (6 cars) ─────────────────────────────────────────────────────
   addCar(-11,  -4, 0);
   addCar(-11,   4, 0);
