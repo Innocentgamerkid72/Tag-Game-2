@@ -13,6 +13,8 @@ export const weaponCallbacks = {
   onSplashHit:     (_target: Controllable, _falloff: number): number => 0,
   /** Extra HP damage dealt by a sword swing (default 0). */
   onSwordHit:      (_target: Controllable): number => 0,
+  /** Called when a zombie bite lands on an entity (infection mode). */
+  onBiteHit:       (_target: Controllable): void => {},
 };
 
 /** Reset all weapon callbacks to their no-op defaults. */
@@ -21,10 +23,11 @@ export function resetWeaponCallbacks() {
   weaponCallbacks.onProjectileHit = () => 0;
   weaponCallbacks.onSplashHit     = () => 0;
   weaponCallbacks.onSwordHit      = () => 0;
+  weaponCallbacks.onBiteHit       = () => {};
 }
 
 // ── Per-weapon config ─────────────────────────────────────────────────────────
-export type WeaponType = "rocket" | "freeze" | "shotgun" | "sword" | "blaster";
+export type WeaponType = "rocket" | "freeze" | "shotgun" | "sword" | "blaster" | "bite";
 
 interface WeaponDef {
   name:        string;
@@ -67,6 +70,13 @@ export const DEFS: Record<WeaponType, WeaponDef> = {
     gravity: 0, hitForce: 20, hitForceY: 6,
     splashRadius: 0, freezeSec: 0, pellets: 7, spread: 0.22,
     maxAmmo: 9, reloadTime: 1, regenAmmo: true,
+  },
+  bite: {
+    name: "Bite", color: 0xff2200, lightColor: 0xff4400,
+    size: 0, speed: 0, cooldown: 0.9, life: 0,
+    gravity: 0, hitForce: 0, hitForceY: 0,
+    splashRadius: 0, freezeSec: 0, pellets: 0, spread: 0,
+    maxAmmo: -1, reloadTime: 0, regenAmmo: false,
   },
   blaster: {
     name: "Blaster", color: 0x00ff44, lightColor: 0x44ff88,
@@ -433,11 +443,82 @@ class SwordSwing {
   }
 }
 
+// ── Bite swing (zombie melee — infects on 3 hits) ─────────────────────────────
+const BITE_RANGE      = 2.8;
+const BITE_ARC        = 1.3;
+const BITE_FORCE      = 7;
+const BITE_FORCE_Y    = 4;
+const BITE_SWING_TIME = 0.22;
+
+class BiteSwing {
+  private readonly _flash: THREE.Mesh;
+  private readonly _light: THREE.PointLight;
+  private _timer = BITE_SWING_TIME;
+  private _hitEntities = new Set<Controllable>();
+  done = false;
+
+  constructor(
+    private readonly _scene: THREE.Scene,
+    origin: THREE.Vector3,
+    private readonly _forward: THREE.Vector3,
+  ) {
+    this._flash = new THREE.Mesh(
+      new THREE.SphereGeometry(0.55, 7, 7),
+      new THREE.MeshBasicMaterial({ color: 0xff2200, transparent: true, opacity: 0.75 }),
+    );
+    this._flash.position.copy(origin).addScaledVector(_forward, 1.4);
+    _scene.add(this._flash);
+
+    this._light = new THREE.PointLight(0xff2200, 4, 6);
+    this._light.position.copy(this._flash.position);
+    _scene.add(this._light);
+  }
+
+  update(dt: number, shooter: Controllable, entities: Controllable[]) {
+    if (this.done) return;
+    this._timer -= dt;
+
+    const t = 1 - this._timer / BITE_SWING_TIME;
+    (this._flash.material as THREE.MeshBasicMaterial).opacity = Math.max(0, 0.75 - t * 2);
+    this._light.intensity = Math.max(0, 4 * (1 - t * 2.5));
+    this._flash.scale.setScalar(1 + t * 0.8);
+
+    for (const e of entities) {
+      if ((e as unknown) === (shooter as unknown) || e.isEliminated || this._hitEntities.has(e)) continue;
+      const toE = new THREE.Vector3(
+        e.position.x - shooter.position.x,
+        0,
+        e.position.z - shooter.position.z,
+      );
+      const dist = toE.length();
+      if (dist > BITE_RANGE || dist < 0.01) continue;
+      const angle = toE.normalize().angleTo(
+        new THREE.Vector3(this._forward.x, 0, this._forward.z).normalize(),
+      );
+      if (angle > BITE_ARC) continue;
+
+      this._hitEntities.add(e);
+      e.velocity.x    += (toE.x / dist || 0) * BITE_FORCE;
+      e.velocity.z    += (toE.z / dist || 0) * BITE_FORCE;
+      e.velocity.y     = Math.max(e.velocity.y, BITE_FORCE_Y);
+      e.knockbackTimer = 0.3;
+      weaponCallbacks.onBiteHit(e);
+    }
+
+    if (this._timer <= 0) {
+      this._scene.remove(this._flash);
+      this._scene.remove(this._light);
+      this.done = true;
+    }
+  }
+}
+
 // ── Weapon system ─────────────────────────────────────────────────────────────
 export class WeaponSystem {
   private _type:        WeaponType = "sword";
   private _projectiles: Projectile[] = [];
   private _swings:      SwordSwing[] = [];
+  private _biteSwings:  BiteSwing[] = [];
   private _explosions:  Explosion[] = [];
   private _cooldown     = 0;
   private _freezeMap:   Map<Controllable, number> = new Map();
@@ -528,6 +609,13 @@ export class WeaponSystem {
       return;
     }
 
+    // Bite — unlimited, no ammo check
+    if (this._type === "bite") {
+      this._biteSwings.push(new BiteSwing(scene, origin, direction));
+      this._cooldown = def.cooldown;
+      return;
+    }
+
     // Ammo check
     if (def.maxAmmo !== -1) {
       const current = this._ammo.get(this._type) ?? def.maxAmmo;
@@ -601,6 +689,9 @@ export class WeaponSystem {
 
     for (const s of this._swings) s.update(dt, shooter, entities, this._projectiles);
     this._swings = this._swings.filter(s => !s.done);
+
+    for (const b of this._biteSwings) b.update(dt, shooter, entities);
+    this._biteSwings = this._biteSwings.filter(b => !b.done);
 
     for (const ex of this._explosions) ex.update(dt);
     this._explosions = this._explosions.filter(ex => !ex.done);

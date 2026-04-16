@@ -585,15 +585,24 @@ function gameLoop() {
 
   const isTomfoolery = roundManager.mode.name === "Tomfoolery";
   const isInfection  = roundManager.mode.name === "Infection";
-  // In Infection, only healthy players (not zombies) get weapons
+  const isInfectionZombie  = isInfection && (player as unknown as Controllable).isIt;
   const isInfectionHealthy = isInfection && !(player as unknown as Controllable).isIt;
 
-  // Weapons are active in Tomfoolery, Infection (healthy only), when admin gave one, or when player is the hunter
-  const weaponsActive = isTomfoolery || isInfectionHealthy || adminGiveUsedRound === roundManager.roundId || playerIsHunter;
+  // Weapons active for: Tomfoolery, Infection (both sides), admin-given, Hunter IT
+  const weaponsActive = isTomfoolery || isInfectionHealthy || isInfectionZombie || adminGiveUsedRound === roundManager.roundId || playerIsHunter;
+
+  // Force zombie into bite weapon every frame
+  if (isInfectionZombie) weapon.setWeapon("bite");
 
   if (weaponsActive) {
-    {
-      // Weapon switching — keys 1-5
+    if (isInfectionZombie) {
+      // Zombie — locked to bite, no switching
+    } else if (isInfectionHealthy) {
+      // Healthy in infection — only sword (1) and blaster (5)
+      if (input.isDown("Digit1")) weapon.setWeapon(WEAPON_ORDER[0]);
+      if (input.isDown("Digit5")) weapon.setWeapon(WEAPON_ORDER[4]);
+    } else {
+      // Normal weapon switching — keys 1-5
       const weaponKeys = ["Digit1", "Digit2", "Digit3", "Digit4", "Digit5"];
       for (let i = 0; i < weaponKeys.length; i++) {
         if (input.isDown(weaponKeys[i])) weapon.setWeapon(WEAPON_ORDER[i]);
@@ -611,40 +620,81 @@ function gameLoop() {
     // Weapon HUD
     const WEAPON_COLORS: Record<string, string> = {
       rocket: "#ff2200", freeze: "#44aaff", shotgun: "#ffee33", sword: "#aaddff",
+      blaster: "#00ff44", bite: "#ff2200",
     };
-    weaponHudEl.innerHTML = WEAPON_ORDER.map((w, i) => {
-      const active = w === weapon.type;
-      const col = WEAPON_COLORS[w];
-      const def = DEFS[w];
-      const label = def.name.split(" ")[0];
-      const keyNum = i + 1;
 
-      // Ammo / reload display (only for the active slot)
-      let ammoLine = "";
-      if (active && def.maxAmmo !== -1) {
-        const cur = weapon.ammo;
-        if (weapon.isReloading) {
-          const pct = Math.round(weapon.reloadProgress * 100);
-          const filled = Math.round(weapon.reloadProgress * 10);
-          const bar = "█".repeat(filled) + "░".repeat(10 - filled);
-          ammoLine = `<div style="font-size:10px;margin-top:3px;color:#ffcc44;">${bar} ${pct}%</div>`;
-        } else {
-          // Show pips for each ammo unit
-          const pips = "●".repeat(cur) + "○".repeat(def.maxAmmo - cur);
-          const outOfAmmo = cur === 0;
-          ammoLine = `<div style="font-size:10px;margin-top:3px;letter-spacing:1px;color:${outOfAmmo ? "#ff4444" : col};">${pips}</div>`;
-        }
-      }
-
-      return `<div style="
+    if (isInfectionZombie) {
+      // Zombie HUD — just show bite slot
+      weaponHudEl.innerHTML = `<div style="
         padding:6px 14px;font-family:monospace;font-size:13px;border-radius:6px;
-        background:${active ? col + "33" : "rgba(0,0,0,0.45)"};
-        border:2px solid ${active ? col : "rgba(255,255,255,0.2)"};
-        color:${active ? col : "rgba(255,255,255,0.5)"};
-        font-weight:${active ? "bold" : "normal"};
-        text-align:center;
-      ">[${keyNum}] ${label}${ammoLine}</div>`;
-    }).join("");
+        background:#ff220033;border:2px solid #ff2200;color:#ff2200;font-weight:bold;text-align:center;
+      ">[CLICK] Bite</div>`;
+    } else if (isInfectionHealthy) {
+      // Healthy HUD — show only sword and blaster
+      const infSlots: [WeaponType, number][] = [
+        [WEAPON_ORDER[0], 1],  // sword → key 1
+        [WEAPON_ORDER[4], 5],  // blaster → key 5
+      ];
+      weaponHudEl.innerHTML = infSlots.map(([w, keyNum]) => {
+        const active = w === weapon.type;
+        const col = WEAPON_COLORS[w] ?? "#ffffff";
+        const def = DEFS[w];
+        const label = def.name.split(" ")[0];
+        let ammoLine = "";
+        if (active && def.maxAmmo !== -1) {
+          const cur = weapon.ammo;
+          if (weapon.isReloading) {
+            const pct = Math.round(weapon.reloadProgress * 100);
+            const filled = Math.round(weapon.reloadProgress * 10);
+            const bar = "█".repeat(filled) + "░".repeat(10 - filled);
+            ammoLine = `<div style="font-size:10px;margin-top:3px;color:#ffcc44;">${bar} ${pct}%</div>`;
+          } else {
+            const pips = "●".repeat(cur) + "○".repeat(def.maxAmmo - cur);
+            ammoLine = `<div style="font-size:10px;margin-top:3px;letter-spacing:1px;color:${cur === 0 ? "#ff4444" : col};">${pips}</div>`;
+          }
+        }
+        return `<div style="
+          padding:6px 14px;font-family:monospace;font-size:13px;border-radius:6px;
+          background:${active ? col + "33" : "rgba(0,0,0,0.45)"};
+          border:2px solid ${active ? col : "rgba(255,255,255,0.2)"};
+          color:${active ? col : "rgba(255,255,255,0.5)"};
+          font-weight:${active ? "bold" : "normal"};text-align:center;
+        ">[${keyNum}] ${label}${ammoLine}</div>`;
+      }).join("");
+    } else {
+      weaponHudEl.innerHTML = WEAPON_ORDER.map((w, i) => {
+        const active = w === weapon.type;
+        const col = WEAPON_COLORS[w] ?? "#ffffff";
+        const def = DEFS[w];
+        const label = def.name.split(" ")[0];
+        const keyNum = i + 1;
+
+        // Ammo / reload display (only for the active slot)
+        let ammoLine = "";
+        if (active && def.maxAmmo !== -1) {
+          const cur = weapon.ammo;
+          if (weapon.isReloading) {
+            const pct = Math.round(weapon.reloadProgress * 100);
+            const filled = Math.round(weapon.reloadProgress * 10);
+            const bar = "█".repeat(filled) + "░".repeat(10 - filled);
+            ammoLine = `<div style="font-size:10px;margin-top:3px;color:#ffcc44;">${bar} ${pct}%</div>`;
+          } else {
+            const pips = "●".repeat(cur) + "○".repeat(def.maxAmmo - cur);
+            const outOfAmmo = cur === 0;
+            ammoLine = `<div style="font-size:10px;margin-top:3px;letter-spacing:1px;color:${outOfAmmo ? "#ff4444" : col};">${pips}</div>`;
+          }
+        }
+
+        return `<div style="
+          padding:6px 14px;font-family:monospace;font-size:13px;border-radius:6px;
+          background:${active ? col + "33" : "rgba(0,0,0,0.45)"};
+          border:2px solid ${active ? col : "rgba(255,255,255,0.2)"};
+          color:${active ? col : "rgba(255,255,255,0.5)"};
+          font-weight:${active ? "bold" : "normal"};
+          text-align:center;
+        ">[${keyNum}] ${label}${ammoLine}</div>`;
+      }).join("");
+    }
   } else {
     weaponHudEl.innerHTML = "";
   }

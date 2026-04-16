@@ -165,6 +165,32 @@ function buildShotgun(): THREE.Group {
   return g;
 }
 
+function buildBite(): THREE.Group {
+  const g = new THREE.Group();
+  // Hand/fist base (dark red)
+  const fist = _box(0.15, 0.13, 0.18, 0x882222);
+  fist.position.set(0, 0, -0.02);
+  g.add(fist);
+  // Three claw tips
+  for (let i = -1; i <= 1; i++) {
+    const claw = _box(0.04, 0.03, 0.13, 0xff4400);
+    claw.position.set(i * 0.055, 0.06, -0.13);
+    g.add(claw);
+  }
+  // Two fangs (lower jaw)
+  const fangL = _box(0.032, 0.11, 0.032, 0xffddcc);
+  fangL.position.set(-0.04, -0.10, -0.04);
+  g.add(fangL);
+  const fangR = _box(0.032, 0.11, 0.032, 0xffddcc);
+  fangR.position.set(0.04, -0.10, -0.04);
+  g.add(fangR);
+  // Glow effect
+  const glow = _sphere(0.06, 0xff2200);
+  glow.position.set(0, 0, -0.09);
+  g.add(glow);
+  return g;
+}
+
 // ── Pre-build all models ──────────────────────────────────────────────────────
 const MODELS: Record<WeaponType, THREE.Group> = {
   sword:   buildSword(),
@@ -172,6 +198,7 @@ const MODELS: Record<WeaponType, THREE.Group> = {
   freeze:  buildFreezeRay(),
   shotgun: buildShotgun(),
   blaster: buildBlaster(),
+  bite:    buildBite(),
 };
 
 // Resting position / rotation for each model in view-space
@@ -182,6 +209,7 @@ const POSE: Record<WeaponType, { pos: [number,number,number]; rot: [number,numbe
   freeze:  { pos: [ 0.26, -0.28, -0.58], rot: [ 0.05,  0.40,  0.00] },
   shotgun: { pos: [ 0.25, -0.30, -0.58], rot: [ 0.05,  0.42,  0.00] },
   blaster: { pos: [ 0.26, -0.28, -0.56], rot: [ 0.05,  0.42,  0.00] },
+  bite:    { pos: [ 0.27, -0.27, -0.48], rot: [ 0.15,  0.40, -0.10] },
 };
 
 // Add all models to the weapon scene (only one visible at a time)
