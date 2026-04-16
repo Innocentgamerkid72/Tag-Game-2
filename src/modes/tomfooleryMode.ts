@@ -12,13 +12,46 @@ export const TMF_MAX_LIVES = 3;
 const BUMP_DAMAGE  = 22;
 const RESPAWN_IMMUNITY = 3.5; // seconds of tag immunity after respawn
 
-// Spread spawn points so players don't all land on each other
+// Respawn spots spread across all platform rings (y=2 = 1m above platform surface).
+// Drawn from all 4 rings + the sky tier so players scatter around the full map.
 const SPAWN_OFFSETS: THREE.Vector3[] = [
-  new THREE.Vector3( 0, 3, 0),
-  new THREE.Vector3( 4, 3, 0),
-  new THREE.Vector3(-4, 3, 0),
-  new THREE.Vector3( 0, 3, 4),
-  new THREE.Vector3( 0, 3,-4),
+  // Main platform quadrants
+  new THREE.Vector3( 8, 2,  8),
+  new THREE.Vector3(-8, 2,  8),
+  new THREE.Vector3( 8, 2, -8),
+  new THREE.Vector3(-8, 2, -8),
+  // Ring 1 cardinal (±26)
+  new THREE.Vector3( 26, 2,  0),
+  new THREE.Vector3(-26, 2,  0),
+  new THREE.Vector3(  0, 2, 26),
+  new THREE.Vector3(  0, 2,-26),
+  // Ring 1 diagonal (±23)
+  new THREE.Vector3( 23, 2,  23),
+  new THREE.Vector3(-23, 2,  23),
+  new THREE.Vector3( 23, 2, -23),
+  new THREE.Vector3(-23, 2, -23),
+  // Ring 2 cardinal (±44)
+  new THREE.Vector3( 44, 2,  0),
+  new THREE.Vector3(-44, 2,  0),
+  new THREE.Vector3(  0, 2, 44),
+  new THREE.Vector3(  0, 2,-44),
+  // Ring 2 diagonal (±37)
+  new THREE.Vector3( 37, 2,  37),
+  new THREE.Vector3(-37, 2,  37),
+  new THREE.Vector3( 37, 2, -37),
+  new THREE.Vector3(-37, 2, -37),
+  // Ring 3 cardinal (±62)
+  new THREE.Vector3( 62, 2,  0),
+  new THREE.Vector3(-62, 2,  0),
+  new THREE.Vector3(  0, 2, 62),
+  new THREE.Vector3(  0, 2,-62),
+  // Ring 4 cardinal (±80)
+  new THREE.Vector3( 80, 2,  0),
+  new THREE.Vector3(-80, 2,  0),
+  new THREE.Vector3(  0, 2, 80),
+  new THREE.Vector3(  0, 2,-80),
+  // Sky tier top (y=12)
+  new THREE.Vector3(  0, 13,  0),
 ];
 
 export class TomfooleryMode implements GameMode {
@@ -27,19 +60,18 @@ export class TomfooleryMode implements GameMode {
 
   private _graceTimer = 0;
   private _prevEliminated = new Set<Controllable>();
-  private _spawnIdx = 0;
 
   onStart(entities: Controllable[]) {
     this._prevEliminated.clear();
-    this._spawnIdx = 0;
+    // Shuffle a subset of indices for initial spread
+    const idxPool = SPAWN_OFFSETS.map((_, i) => i).sort(() => Math.random() - 0.5);
     entities.forEach((e, i) => {
       e.setIt(false);
       e.setFrozen(false);
       e.setEliminated(false);
       e.hp    = TMF_MAX_HP;
       e.lives = TMF_MAX_LIVES;
-      // Spread players out at start
-      const sp = SPAWN_OFFSETS[i % SPAWN_OFFSETS.length];
+      const sp = SPAWN_OFFSETS[idxPool[i % idxPool.length]];
       e.position.set(sp.x, sp.y, sp.z);
       e.velocity.set(0, 0, 0);
     });
@@ -53,9 +85,8 @@ export class TomfooleryMode implements GameMode {
       if (e.isEliminated && !wasElim) {
         e.lives = Math.max(0, e.lives - 1);
         if (e.lives > 0) {
-          // Respawn at a spread position, full HP
-          const sp = SPAWN_OFFSETS[this._spawnIdx % SPAWN_OFFSETS.length];
-          this._spawnIdx++;
+          // Respawn at a random platform spread across the map
+          const sp = SPAWN_OFFSETS[Math.floor(Math.random() * SPAWN_OFFSETS.length)];
           e.setEliminated(false);
           e.position.set(sp.x, sp.y, sp.z);
           e.velocity.set(0, 0, 0);

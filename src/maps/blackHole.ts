@@ -4,8 +4,7 @@ import { GRAVITY } from "../physics";
 
 const PULL_RADIUS    = 8.0;  // units — start being pulled
 const CAPTURE_RADIUS = 2.2;  // units — captured and held
-const HOLD_DURATION  = 3;    // seconds held before fling
-const FLING_FORCE    = 28;   // units/s of fling velocity
+const HOLD_DURATION  = 2.5;  // seconds held before teleport/fling
 const PATROL_SPEED   = 2.5;  // units/s along patrol path
 
 export class BlackHole {
@@ -25,7 +24,9 @@ export class BlackHole {
     patrolA: THREE.Vector3,
     patrolB: THREE.Vector3,
     /** Pass the map's `add()` helper so the mesh is tracked for disposal. */
-    add: (o: THREE.Object3D) => void
+    add: (o: THREE.Object3D) => void,
+    /** If provided, captured entities are teleported to a random spot here instead of flung. */
+    private readonly _teleportSpots: THREE.Vector3[] = [],
   ) {
     this._patrolA    = patrolA.clone();
     this._patrolB    = patrolB.clone();
@@ -118,20 +119,28 @@ export class BlackHole {
         e.knockbackTimer = 0.15; // prevent input fighting the hold
 
         if (held >= HOLD_DURATION) {
-          // ── Fling! ────────────────────────────────────────────────────
+          // ── Release: teleport to random spot (or fling if no spots) ──
           this._captured.delete(e);
           e.setFrozen(false);
-          // Fling radially outward from this black hole so the player is
-          // never launched toward it (or the other black hole nearby).
-          const flingDir = new THREE.Vector3()
-            .subVectors(e.position, bPos)
-            .normalize();
-          // Guarantee a meaningful upward component even if the orbit
-          // happened to be nearly horizontal.
-          flingDir.y = Math.max(flingDir.y, 0.45);
-          flingDir.normalize();
-          e.velocity.copy(flingDir.multiplyScalar(FLING_FORCE));
-          e.tagImmunity = Math.max(e.tagImmunity, 2.5); // brief immunity post-fling
+          e.velocity.set(0, 0, 0);
+
+          if (this._teleportSpots.length > 0) {
+            const dest = this._teleportSpots[
+              Math.floor(Math.random() * this._teleportSpots.length)
+            ];
+            e.position.set(dest.x, dest.y, dest.z);
+            // Small upward pop so they land cleanly on the platform
+            e.velocity.y = 4;
+          } else {
+            // Fallback: fling outward
+            const flingDir = new THREE.Vector3()
+              .subVectors(e.position, bPos)
+              .normalize();
+            flingDir.y = Math.max(flingDir.y, 0.45);
+            flingDir.normalize();
+            e.velocity.copy(flingDir.multiplyScalar(28));
+          }
+          e.tagImmunity  = Math.max(e.tagImmunity, 2.5);
           e.knockbackTimer = 0.6;
         }
 

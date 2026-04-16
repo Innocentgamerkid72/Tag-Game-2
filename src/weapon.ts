@@ -1,8 +1,30 @@
 import * as THREE from "three";
 import { Controllable } from "./types";
 
+// ── Game-mode weapon callbacks ────────────────────────────────────────────────
+// Infection mode (and future modes) can override these to inject mode-specific
+// behaviour without coupling the weapon system to any particular mode.
+export const weaponCallbacks = {
+  /** Multiplier applied to freeze duration for a given target (default 1). */
+  freezeDurMult:   (_target: Controllable): number => 1,
+  /** Extra HP damage dealt on a direct projectile hit (default 0). */
+  onProjectileHit: (_target: Controllable, _wType: WeaponType): number => 0,
+  /** Extra HP damage dealt by a splash explosion (default 0). */
+  onSplashHit:     (_target: Controllable, _falloff: number): number => 0,
+  /** Extra HP damage dealt by a sword swing (default 0). */
+  onSwordHit:      (_target: Controllable): number => 0,
+};
+
+/** Reset all weapon callbacks to their no-op defaults. */
+export function resetWeaponCallbacks() {
+  weaponCallbacks.freezeDurMult   = () => 1;
+  weaponCallbacks.onProjectileHit = () => 0;
+  weaponCallbacks.onSplashHit     = () => 0;
+  weaponCallbacks.onSwordHit      = () => 0;
+}
+
 // ── Per-weapon config ─────────────────────────────────────────────────────────
-export type WeaponType = "rocket" | "freeze" | "shotgun" | "sword";
+export type WeaponType = "rocket" | "freeze" | "shotgun" | "sword" | "blaster";
 
 interface WeaponDef {
   name:        string;
@@ -46,6 +68,13 @@ export const DEFS: Record<WeaponType, WeaponDef> = {
     splashRadius: 0, freezeSec: 0, pellets: 7, spread: 0.22,
     maxAmmo: 9, reloadTime: 1, regenAmmo: true,
   },
+  blaster: {
+    name: "Blaster", color: 0xff6600, lightColor: 0xff8800,
+    size: 0.16, speed: 45, cooldown: 0.18, life: 2.0,
+    gravity: 0, hitForce: 28, hitForceY: 10,
+    splashRadius: 0, freezeSec: 0, pellets: 1, spread: 0,
+    maxAmmo: 6, reloadTime: 1.5, regenAmmo: false,
+  },
   // sword is handled separately — not a projectile weapon
   sword: {
     name: "Sword", color: 0xaaddff, lightColor: 0xcceeff,
@@ -56,7 +85,7 @@ export const DEFS: Record<WeaponType, WeaponDef> = {
   },
 };
 
-export const WEAPON_ORDER: WeaponType[] = ["sword", "rocket", "freeze", "shotgun"];
+export const WEAPON_ORDER: WeaponType[] = ["sword", "rocket", "freeze", "shotgun", "blaster"];
 
 // ── Explosion effect ──────────────────────────────────────────────────────────
 class Explosion {
@@ -167,6 +196,7 @@ class Projectile {
     origin: THREE.Vector3,
     direction: THREE.Vector3,
     def: WeaponDef,
+    private readonly _wType: WeaponType = "rocket",
   ) {
     this._def  = def;
     this._life = def.life;
@@ -262,6 +292,8 @@ class Projectile {
       e.velocity.y      = Math.max(e.velocity.y, this._def.hitForceY * falloff);
       e.knockbackTimer  = 0.55;
       e.tagImmunity     = Math.max(e.tagImmunity, 0.55);
+      const sDmg = weaponCallbacks.onSplashHit(e, falloff);
+      if (sDmg > 0) e.hp = Math.max(0, e.hp - sDmg);
     }
     this.onExplode?.(center);
     this._remove();
@@ -285,10 +317,15 @@ class Projectile {
       e.knockbackTimer = 0.55;
       e.tagImmunity    = Math.max(e.tagImmunity, 0.55);
     }
+    // HP damage from mode callbacks
+    const dmg = weaponCallbacks.onProjectileHit(e, this._wType);
+    if (dmg > 0) e.hp = Math.max(0, e.hp - dmg);
+
     // Then stun/freeze if applicable
     if (this._def.freezeSec > 0) {
+      const dur = this._def.freezeSec * weaponCallbacks.freezeDurMult(e);
       e.setFrozen(true);
-      freezeMap.set(e, this._def.freezeSec);
+      freezeMap.set(e, dur);
     }
   }
 
@@ -377,6 +414,8 @@ class SwordSwing {
       e.velocity.y     = Math.max(e.velocity.y, SWORD_FORCE_Y);
       e.knockbackTimer = 0.7;
       e.tagImmunity    = Math.max(e.tagImmunity, 0.7);
+      const sDmg = weaponCallbacks.onSwordHit(e);
+      if (sDmg > 0) e.hp = Math.max(0, e.hp - sDmg);
     }
 
     // Parry: destroy any projectile within parry radius
@@ -460,7 +499,7 @@ export class WeaponSystem {
     if (weaponType === "sword") return;
     const def = DEFS[weaponType];
     if (def.pellets === 1) {
-      const p = new Projectile(scene, origin, direction, def);
+      const p = new Projectile(scene, origin, direction, def, weaponType);
       if (weaponType === "rocket") {
         p.onExplode = (center) => this._explosions.push(new Explosion(scene, center));
       }
@@ -472,7 +511,7 @@ export class WeaponSystem {
           Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5,
         ).normalize();
         const spreadDir = direction.clone().applyAxisAngle(axis, angle).normalize();
-        this._projectiles.push(new Projectile(scene, origin, spreadDir, def));
+        this._projectiles.push(new Projectile(scene, origin, spreadDir, def, weaponType));
       }
     }
   }
@@ -494,19 +533,14 @@ export class WeaponSystem {
       const current = this._ammo.get(this._type) ?? def.maxAmmo;
       if (current <= 0) return; // out of ammo, can't fire
       this._ammo.set(this._type, current - 1);
-      // Start reload if now empty (non-regen) or always queue next regen tick
-      if (!def.regenAmmo && current - 1 === 0) {
+      // Start reload only when ammo hits zero
+      if (current - 1 === 0) {
         this._reloadTimer.set(this._type, def.reloadTime);
-      } else if (def.regenAmmo) {
-        // Regen: only start timer if not already ticking
-        if ((this._reloadTimer.get(this._type) ?? 0) <= 0) {
-          this._reloadTimer.set(this._type, def.reloadTime);
-        }
       }
     }
 
     if (def.pellets === 1) {
-      const p = new Projectile(scene, origin, direction, def);
+      const p = new Projectile(scene, origin, direction, def, this._type);
       if (this._type === "rocket") {
         p.onExplode = (center) => this._explosions.push(new Explosion(scene, center));
       }
@@ -518,7 +552,7 @@ export class WeaponSystem {
           Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5,
         ).normalize();
         const spreadDir = direction.clone().applyAxisAngle(axis, angle).normalize();
-        this._projectiles.push(new Projectile(scene, origin, spreadDir, def));
+        this._projectiles.push(new Projectile(scene, origin, spreadDir, def, this._type));
       }
     }
     this._cooldown = def.cooldown;

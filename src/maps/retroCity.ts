@@ -7,7 +7,7 @@ export function buildRetroCity(scene: THREE.Scene): MapResult {
   const colliders: THREE.Box3[] = [];
   const walls: THREE.Box3[] = [];
   const teleporters: Teleporter[] = [];
-  const BOUNDARY = 25;
+  const BOUNDARY = 34;
 
   const _objs: THREE.Object3D[] = [];
   function add<T extends THREE.Object3D>(o: T): T { scene.add(o); _objs.push(o); return o; }
@@ -131,25 +131,25 @@ export function buildRetroCity(scene: THREE.Scene): MapResult {
   }
 
   // ── Buildings (8 buildings, varying heights 5-15) ───────────────────────────
-  addBuilding(-15,  -15, 6,  8, 6, 0x2a2a3e);
-  addBuilding( 15,  -15, 5, 12, 5, 0x1e2a3a);
-  addBuilding(-15,   15, 7, 15, 6, 0x2e1e2e);
-  addBuilding( 15,   15, 6,  6, 7, 0x1a2e1a);
-  addBuilding(-18,    0, 4,  9, 4, 0x2a1a1a);
-  addBuilding( 18,    0, 5, 11, 5, 0x1a1a2e);
-  addBuilding(  0,  -18, 8,  7, 5, 0x2e2e1e);
-  addBuilding(  0,   18, 6, 10, 6, 0x1e2e2e);
+  addBuilding(-20,  -20, 6,  8, 6, 0x2a2a3e);
+  addBuilding( 20,  -20, 5, 12, 5, 0x1e2a3a);
+  addBuilding(-20,   20, 7, 15, 6, 0x2e1e2e);
+  addBuilding( 20,   20, 6,  6, 7, 0x1a2e1a);
+  addBuilding(-24,    0, 4,  9, 4, 0x2a1a1a);
+  addBuilding( 24,    0, 5, 11, 5, 0x1a1a2e);
+  addBuilding(  0,  -24, 8,  7, 5, 0x2e2e1e);
+  addBuilding(  0,   24, 6, 10, 6, 0x1e2e2e);
 
   // ── Parked cars (6 cars) ─────────────────────────────────────────────────────
-  addCar(-8,  -3, 0);
-  addCar(-8,   3, 0);
-  addCar( 8,  -3, Math.PI);
-  addCar( 8,   3, Math.PI);
-  addCar(-3, -10, Math.PI / 2);
-  addCar( 3,  10, Math.PI / 2);
+  addCar(-11,  -4, 0);
+  addCar(-11,   4, 0);
+  addCar( 11,  -4, Math.PI);
+  addCar( 11,   4, Math.PI);
+  addCar( -4, -14, Math.PI / 2);
+  addCar(  4,  14, Math.PI / 2);
 
   // ── Street lamps ─────────────────────────────────────────────────────────────
-  const lampPositions = [[-10, -10], [10, -10], [-10, 10], [10, 10]];
+  const lampPositions = [[-14, -14], [14, -14], [-14, 14], [14, 14]];
   for (const [lx, lz] of lampPositions) {
     const pole = new THREE.Mesh(
       new THREE.CylinderGeometry(0.05, 0.07, 4, 6),
@@ -171,37 +171,37 @@ export function buildRetroCity(scene: THREE.Scene): MapResult {
   // ── Trampolines near tall buildings ──────────────────────────────────────────
   // Placed just outside the building wall so players can run to them and bounce up
   const hazards: Array<{ update(dt: number, entities: import("../types").Controllable[]): void }> = [];
-  hazards.push(new Trampoline(scene, -15, 0, 11,   2.2, add, colliders)); // near h=15 (SW)
-  hazards.push(new Trampoline(scene,  15, 0, -11,  2.2, add, colliders)); // near h=12 (NW)
-  hazards.push(new Trampoline(scene,  14, 0,   0,  2.2, add, colliders)); // near h=11 (E)
-  hazards.push(new Trampoline(scene, -14, 0,   0,  2.2, add, colliders)); // near h=9 (W)
-  hazards.push(new Trampoline(scene,   0, 0,  14,  2.2, add, colliders)); // near h=10 (N)
+  hazards.push(new Trampoline(scene, -20, 0, 15,   2.2, add, colliders)); // near h=15 (SW)
+  hazards.push(new Trampoline(scene,  20, 0, -15,  2.2, add, colliders)); // near h=12 (NW)
+  hazards.push(new Trampoline(scene,  19, 0,   0,  2.2, add, colliders)); // near h=11 (E)
+  hazards.push(new Trampoline(scene, -19, 0,   0,  2.2, add, colliders)); // near h=9 (W)
+  hazards.push(new Trampoline(scene,   0, 0,  19,  2.2, add, colliders)); // near h=10 (N)
 
   // ── Moving cars (4 cars on the two roads) ────────────────────────────────────
   // Horizontal road (z ≈ 0): two cars going in opposite directions
-  hazards.push(new MovingCar("x", -22, -1.2, -22, 22,  1, 0xcc2222, add)); // red, westbound lane
-  hazards.push(new MovingCar("x",  22,  1.2, -22, 22, -1, 0xccaa00, add)); // yellow, eastbound lane
+  hazards.push(new MovingCar("x", -30, -1.2, -30, 30,  1, 0xcc2222, add)); // red, westbound lane
+  hazards.push(new MovingCar("x",  30,  1.2, -30, 30, -1, 0xccaa00, add)); // yellow, eastbound lane
   // Vertical road (x ≈ 0): two cars going in opposite directions
-  hazards.push(new MovingCar("z", -22, -1.2, -22, 22,  1, 0x2244cc, add)); // blue, southbound lane
-  hazards.push(new MovingCar("z",  10,  1.2, -22, 22,  1, 0x22aa44, add)); // green, staggered start
+  hazards.push(new MovingCar("z", -30, -1.2, -30, 30,  1, 0x2244cc, add)); // blue, southbound lane
+  hazards.push(new MovingCar("z",  14,  1.2, -30, 30,  1, 0x22aa44, add)); // green, staggered start
 
   // ── Teleporters (3 pairs, orange) ───────────────────────────────────────────
   // Pad y must equal the building height so the trigger box starts at roof surface
   // where player feet (position.y == roof collider top ≈ h+0.05) can enter it.
 
   // Pair 1: Ground center <-> top of tallest building (h=15)
-  const tp1a = addTeleporter(  0,  0,    0,  -15, 15.5,  15);
-  const tp1b = addTeleporter(-15, 15,   15,    0,  1.5,   0);
+  const tp1a = addTeleporter(  0,  0,    0,  -20, 15.5,  20);
+  const tp1b = addTeleporter(-20, 15,   20,    0,  1.5,   0);
   tp1a.link = tp1b; tp1b.link = tp1a;
 
   // Pair 2: Left building top (h=9) <-> right building top (h=11)
-  const tp2a = addTeleporter(-18,  9,  0,  18, 11.5,  0);
-  const tp2b = addTeleporter( 18, 11,  0, -18,  9.5,  0);
+  const tp2a = addTeleporter(-24,  9,  0,  24, 11.5,  0);
+  const tp2b = addTeleporter( 24, 11,  0, -24,  9.5,  0);
   tp2a.link = tp2b; tp2b.link = tp2a;
 
   // Pair 3: South building top (h=7) <-> North building top (h=10)
-  const tp3a = addTeleporter(  0,  7, -18,   0, 10.5, 18);
-  const tp3b = addTeleporter(  0, 10,  18,   0,  7.5,-18);
+  const tp3a = addTeleporter(  0,  7, -24,   0, 10.5, 24);
+  const tp3b = addTeleporter(  0, 10,  24,   0,  7.5,-24);
   tp3a.link = tp3b; tp3b.link = tp3a;
 
   return {

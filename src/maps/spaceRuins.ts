@@ -6,7 +6,7 @@ export function buildSpaceRuins(scene: THREE.Scene): MapResult {
   const colliders: THREE.Box3[] = [];
   const walls: THREE.Box3[] = [];
   const teleporters: Teleporter[] = [];
-  const BOUNDARY = 22;
+  const BOUNDARY = 30;
 
   const _objs: THREE.Object3D[] = [];
   function add<T extends THREE.Object3D>(o: T): T { scene.add(o); _objs.push(o); return o; }
@@ -131,36 +131,36 @@ export function buildSpaceRuins(scene: THREE.Scene): MapResult {
   // ── Floating platforms (12-15 at y=2 to y=18) ───────────────────────────────
   // Low tier (y=2-4)
   addPlatform(  0,  2,   0,  5, 0.5, 5, 0x334455);
-  addPlatform( -8,  2,  -6,  4, 0.5, 4, 0x3a3a55);
-  addPlatform(  8,  2,  -6,  4, 0.5, 4, 0x3a3a55);
-  addPlatform( -8,  2,   6,  4, 0.5, 4, 0x3a3a55);
-  addPlatform(  8,  3,   6,  4, 0.5, 4, 0x3a3a55);
+  addPlatform(-11,  2,  -8,  4, 0.5, 4, 0x3a3a55);
+  addPlatform( 11,  2,  -8,  4, 0.5, 4, 0x3a3a55);
+  addPlatform(-11,  2,   8,  4, 0.5, 4, 0x3a3a55);
+  addPlatform( 11,  3,   8,  4, 0.5, 4, 0x3a3a55);
 
   // Mid tier (y=6-10)
-  addPlatform( -5,  6,   0,  3, 0.5, 3, 0x445566);
-  addPlatform(  5,  6,   0,  3, 0.5, 3, 0x445566);
-  addPlatform(  0,  7,  -9,  4, 0.5, 4, 0x443355);
-  addPlatform(  0,  8,   9,  4, 0.5, 4, 0x445533);
-  addPlatform(-12,  9,   0,  3, 0.5, 6, 0x334433);
-  addPlatform( 12,  9,   0,  3, 0.5, 6, 0x334433);
+  addPlatform( -7,  6,   0,  3, 0.5, 3, 0x445566);
+  addPlatform(  7,  6,   0,  3, 0.5, 3, 0x445566);
+  addPlatform(  0,  7, -12,  4, 0.5, 4, 0x443355);
+  addPlatform(  0,  8,  12,  4, 0.5, 4, 0x445533);
+  addPlatform(-16,  9,   0,  3, 0.5, 6, 0x334433);
+  addPlatform( 16,  9,   0,  3, 0.5, 6, 0x334433);
 
   // High tier (y=12-18)
   addPlatform(  0, 12,   0,  4, 0.5, 4, 0x556677);
-  addPlatform( -7, 15,  -7,  3, 0.5, 3, 0x665566);
-  addPlatform(  7, 15,   7,  3, 0.5, 3, 0x665566);
+  addPlatform( -9, 15,  -9,  3, 0.5, 3, 0x665566);
+  addPlatform(  9, 15,   9,  3, 0.5, 3, 0x665566);
   addPlatform(  0, 18,   0,  3, 0.5, 3, 0x778899);
 
   // ── Walls on some platforms ──────────────────────────────────────────────────
   // Walls on center low platform
-  addWall(  0, 2.5, -2.5,  5, 1.5, 0.3, 0x445566);
-  addWall(  0, 2.5,  2.5,  5, 1.5, 0.3, 0x445566);
+  addWall(  0, 2.5, -3.0,  5, 1.5, 0.3, 0x445566);
+  addWall(  0, 2.5,  3.0,  5, 1.5, 0.3, 0x445566);
 
   // Wall on high center platform
   addWall(-2, 12.5,   0,  0.3, 2, 4, 0x667788);
   addWall( 2, 12.5,   0,  0.3, 2, 4, 0x667788);
 
   // ── Glowing ruins decorations ────────────────────────────────────────────────
-  const ruinPositions = [[-14, 4, -14], [14, 4, -14], [-14, 4, 14], [14, 4, 14]];
+  const ruinPositions = [[-19, 4, -19], [19, 4, -19], [-19, 4, 19], [19, 4, 19]];
   for (const [rx, ry, rz] of ruinPositions) {
     const pillar = new THREE.Mesh(
       new THREE.CylinderGeometry(0.3, 0.4, 4, 6),
@@ -173,18 +173,34 @@ export function buildSpaceRuins(scene: THREE.Scene): MapResult {
     add(glow);
   }
 
-  // ── Black holes (2, moving patrol paths) ────────────────────────────────────
-  // BH 1 sweeps diagonally across the mid tier
+  // ── Black hole (1, sweeps diagonally — captures and teleports) ──────────────
+  // All platform landing spots the black hole can drop players onto
+  const bhTeleportSpots = [
+    // Low tier
+    new THREE.Vector3(  0, 3.0,   0),
+    new THREE.Vector3(-11, 3.0,  -8),
+    new THREE.Vector3( 11, 3.0,  -8),
+    new THREE.Vector3(-11, 3.0,   8),
+    new THREE.Vector3( 11, 4.0,   8),
+    // Mid tier
+    new THREE.Vector3( -7, 7.0,   0),
+    new THREE.Vector3(  7, 7.0,   0),
+    new THREE.Vector3(  0, 8.0, -12),
+    new THREE.Vector3(  0, 9.0,  12),
+    new THREE.Vector3(-16, 10.0,  0),
+    new THREE.Vector3( 16, 10.0,  0),
+    // High tier
+    new THREE.Vector3(  0, 13.0,  0),
+    new THREE.Vector3( -9, 16.0, -9),
+    new THREE.Vector3(  9, 16.0,  9),
+    new THREE.Vector3(  0, 19.0,  0),
+  ];
+
   const bh1 = new BlackHole(
-    new THREE.Vector3(-13, 7,  -10),
-    new THREE.Vector3( 13, 7,   10),
-    add
-  );
-  // BH 2 sweeps vertically between low and high tier along the Z axis
-  const bh2 = new BlackHole(
-    new THREE.Vector3(  0, 14, -12),
-    new THREE.Vector3(  0,  5,  12),
-    add
+    new THREE.Vector3(-18, 7, -14),
+    new THREE.Vector3( 18, 7,  14),
+    add,
+    bhTeleportSpots,
   );
 
   // ── Teleporters (3 pairs, purple/magenta) ────────────────────────────────────
@@ -194,20 +210,20 @@ export function buildSpaceRuins(scene: THREE.Scene): MapResult {
   tp1a.link = tp1b; tp1b.link = tp1a;
 
   // Pair 2: SW mid <-> NE mid
-  const tp2a = addTeleporter(-12, 9.5,  0,  12, 10.0,  0);
-  const tp2b = addTeleporter( 12, 9.5,  0, -12, 10.0,  0);
+  const tp2a = addTeleporter(-16, 9.5,  0,  16, 10.0,  0);
+  const tp2b = addTeleporter( 16, 9.5,  0, -16, 10.0,  0);
   tp2a.link = tp2b; tp2b.link = tp2a;
 
   // Pair 3: SE low <-> NW high
-  const tp3a = addTeleporter(  8, 3.5,  6,  -7, 15.5, -7);
-  const tp3b = addTeleporter( -7, 15.5,-7,   8,  4.0,  6);
+  const tp3a = addTeleporter( 11, 3.5,  8,  -9, 15.5, -9);
+  const tp3b = addTeleporter( -9, 15.5,-9,  11,  4.0,  8);
   tp3a.link = tp3b; tp3b.link = tp3a;
 
   return {
     colliders,
     walls,
     teleporters,
-    hazards: [bh1, bh2],
+    hazards: [bh1],
     boundary: BOUNDARY,
     gravity: -15,
     background: 0x000010,

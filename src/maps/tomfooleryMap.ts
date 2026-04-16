@@ -309,6 +309,67 @@ export function buildTomfooleryMap(scene: THREE.Scene): MapResult {
   const [tp15, tp16] = [addTeleporter(0,1,-80, 0,1.1,0), addTeleporter(0,1,80, 0,1.1,0)];
   tp15.link = tp16; tp16.link = tp15;
 
+  // ── Gap fill: between-arm pads at ≈22.5° intervals ───────────────────────────
+  // Each ring has 4 cardinal + 4 diagonal arms. These pads fill the open quadrants
+  // between them so players always have somewhere to jump.
+
+  // Within Ring 1 zone — between cardinal (±26,0) and diagonal (±23,±23) arms
+  for (const [rx, rz] of [
+    [22,11],[-22,11],[22,-11],[-22,-11],
+    [11,22],[-11,22],[11,-22],[-11,-22],
+  ] as [number,number][]) {
+    addPlatform(rx, 0, rz, 4, 1, 4, 0x13202c);
+  }
+
+  // Between Ring 1 and Ring 2 — at off-axis angles
+  for (const [rx, rz] of [
+    [34,17],[-34,17],[34,-17],[-34,-17],
+    [17,34],[-17,34],[17,-34],[-17,-34],
+  ] as [number,number][]) {
+    addPlatform(rx, 0, rz, 4, 1, 4, 0x0f1a22);
+  }
+
+  // Within Ring 2 zone — between cardinal (±44,0) and diagonal (±37,±37)
+  // Fills gap between the side pads (±44,±16) and the diagonal pads
+  for (const [rx, rz] of [
+    [40,22],[-40,22],[40,-22],[-40,-22],
+    [22,40],[-22,40],[22,-40],[-22,-40],
+  ] as [number,number][]) {
+    addPlatform(rx, 0, rz, 4, 1, 4, 0x0e1820);
+  }
+
+  // Between Ring 2 and Ring 3 — at off-axis angles
+  for (const [rx, rz] of [
+    [52,26],[-52,26],[52,-26],[-52,-26],
+    [26,52],[-26,52],[26,-52],[-26,-52],
+  ] as [number,number][]) {
+    addPlatform(rx, 0, rz, 4, 1, 4, 0x0c151c);
+  }
+
+  // Within Ring 3 zone — between cardinal (±62,0) and diagonal (±52,±52)
+  for (const [rx, rz] of [
+    [56,30],[-56,30],[56,-30],[-56,-30],
+    [30,56],[-30,56],[30,-56],[-30,-56],
+  ] as [number,number][]) {
+    addPlatform(rx, 0, rz, 5, 1, 5, 0x0b131a);
+  }
+
+  // Between Ring 3 and Ring 4 — at off-axis angles
+  for (const [rx, rz] of [
+    [70,36],[-70,36],[70,-36],[-70,-36],
+    [36,70],[-36,70],[36,-70],[-36,-70],
+  ] as [number,number][]) {
+    addPlatform(rx, 0, rz, 4, 1, 4, 0x09111a);
+  }
+
+  // Within Ring 4 zone — between cardinal (±80,0) and diagonal (±68,±68)
+  for (const [rx, rz] of [
+    [74,40],[-74,40],[74,-40],[-74,-40],
+    [40,74],[-40,74],[40,-74],[-40,-74],
+  ] as [number,number][]) {
+    addPlatform(rx, 0, rz, 4, 1, 4, 0x08101a);
+  }
+
   // ── Sky tier: central pillar + top ───────────────────────────────────────────
   addPlatform(0, 1.5, 0, 2, 10, 2, 0x253848);
   addPlatform(0, 11.5, 0, 12, 0.5, 12, 0x1a3050);
@@ -381,7 +442,7 @@ export function buildTomfooleryMap(scene: THREE.Scene): MapResult {
     new THREE.Vector3(0, 2, -44), new THREE.Vector3(0, 2, -26),
     4, 0.4, 4, 0x442233, 6, add, colliders,
   ));
-  // New: Ring 3 ↔ Ring 4 bridges
+  // Ring 3 ↔ Ring 4 bridges (cardinal)
   movingPlatforms.push(new MovingPlatform(
     new THREE.Vector3(62, 2, 0), new THREE.Vector3(80, 2, 0),
     4, 0.4, 4, 0x334433, 6, add, colliders,
@@ -393,6 +454,19 @@ export function buildTomfooleryMap(scene: THREE.Scene): MapResult {
   movingPlatforms.push(new MovingPlatform(
     new THREE.Vector3(0, 2, 62), new THREE.Vector3(0, 2, 80),
     4, 0.4, 4, 0x334433, 7, add, colliders,
+  ));
+  // Off-axis sweepers through gap-fill zones
+  movingPlatforms.push(new MovingPlatform(
+    new THREE.Vector3(22, 2, 11), new THREE.Vector3(34, 2, 17),
+    4, 0.4, 4, 0x1e3322, 5, add, colliders,
+  ));
+  movingPlatforms.push(new MovingPlatform(
+    new THREE.Vector3(-11, 2, -22), new THREE.Vector3(-17, 2, -34),
+    4, 0.4, 4, 0x1e3322, 5, add, colliders,
+  ));
+  movingPlatforms.push(new MovingPlatform(
+    new THREE.Vector3(52, 2, 26), new THREE.Vector3(56, 2, 30),
+    4, 0.4, 4, 0x223344, 6, add, colliders,
   ));
   // New: diagonal diagonal sky cross (y=14)
   movingPlatforms.push(new MovingPlatform(

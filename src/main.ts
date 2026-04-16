@@ -11,6 +11,8 @@ import { NetworkManager } from "./network";
 import { RemotePlayer } from "./remotePlayer";
 import type { NetMsg } from "./network";
 import { TMF_MAX_HP, TMF_MAX_LIVES } from "./modes/tomfooleryMode";
+import { INF_ZOMBIE_HP, INF_HEALTHY_HP, installInfectionCallbacks } from "./modes/infectionMode";
+import { resetWeaponCallbacks } from "./weapon";
 import { setViewModelWeapon, renderViewModel } from "./weaponViewModel";
 
 // ── Renderer ──────────────────────────────────────────────────────────────────
@@ -107,6 +109,60 @@ function createTmfBars(entities: Controllable[]) {
 function destroyTmfBars() {
   for (const bar of tmfBars.values()) scene.remove(bar.sprite);
   tmfBars.clear();
+}
+
+// ── Infection world-space health bars ────────────────────────────────────────
+interface InfBar { sprite: THREE.Sprite; canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D; tex: THREE.CanvasTexture; lastHp: number; lastIsIt: boolean; }
+const infBars = new Map<Controllable, InfBar>();
+
+function _makeInfBar(): InfBar {
+  const canvas = document.createElement("canvas");
+  canvas.width = 128; canvas.height = 18;
+  const ctx = canvas.getContext("2d")!;
+  const tex = new THREE.CanvasTexture(canvas);
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(1.8, 0.25, 1);
+  scene.add(sprite);
+  return { sprite, canvas, ctx, tex, lastHp: -1, lastIsIt: false };
+}
+
+function _drawInfBar(bar: InfBar, e: Controllable) {
+  const { ctx, canvas, tex } = bar;
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+  const maxHp = e.isIt ? INF_ZOMBIE_HP : INF_HEALTHY_HP;
+  const t = Math.max(0, e.hp / maxHp);
+  // Background
+  ctx.fillStyle = "#222";
+  ctx.beginPath(); ctx.roundRect(0, 0, W, H, 3); ctx.fill();
+  // Fill — zombies are green, healthy are blue
+  ctx.fillStyle = e.isIt
+    ? (t > 0.5 ? "#44ff44" : t > 0.25 ? "#ffcc00" : "#ff3300")
+    : (t > 0.5 ? "#44aaff" : t > 0.25 ? "#ffcc00" : "#ff3300");
+  ctx.beginPath(); ctx.roundRect(0, 0, Math.max(2, W * t), H, 3); ctx.fill();
+  // Label
+  ctx.fillStyle = "#fff";
+  ctx.font = "bold 10px monospace";
+  ctx.textAlign = "center";
+  ctx.fillText(`${Math.max(0, e.hp)}`, W / 2, H - 4);
+  tex.needsUpdate = true;
+  bar.lastHp = e.hp; bar.lastIsIt = e.isIt;
+}
+
+function createInfBars(entities: Controllable[]) {
+  destroyInfBars();
+  destroyTmfBars();
+  for (const e of entities) {
+    const bar = _makeInfBar();
+    _drawInfBar(bar, e);
+    infBars.set(e, bar);
+  }
+}
+
+function destroyInfBars() {
+  for (const bar of infBars.values()) scene.remove(bar.sprite);
+  infBars.clear();
 }
 
 // ── Networking ────────────────────────────────────────────────────────────────
@@ -528,14 +584,17 @@ function gameLoop() {
   thirdPersonCam.update(player.position, player.yaw, input);
 
   const isTomfoolery = roundManager.mode.name === "Tomfoolery";
+  const isInfection  = roundManager.mode.name === "Infection";
+  // In Infection, only healthy players (not zombies) get weapons
+  const isInfectionHealthy = isInfection && !(player as unknown as Controllable).isIt;
 
-  // Weapons are active in Tomfoolery, when admin gave one, or when player is the hunter
-  const weaponsActive = isTomfoolery || adminGiveUsedRound === roundManager.roundId || playerIsHunter;
+  // Weapons are active in Tomfoolery, Infection (healthy only), when admin gave one, or when player is the hunter
+  const weaponsActive = isTomfoolery || isInfectionHealthy || adminGiveUsedRound === roundManager.roundId || playerIsHunter;
 
   if (weaponsActive) {
     {
       // Weapon switching — keys 1-5
-      const weaponKeys = ["Digit1", "Digit2", "Digit3", "Digit4"];
+      const weaponKeys = ["Digit1", "Digit2", "Digit3", "Digit4", "Digit5"];
       for (let i = 0; i < weaponKeys.length; i++) {
         if (input.isDown(weaponKeys[i])) weapon.setWeapon(WEAPON_ORDER[i]);
       }
@@ -604,11 +663,17 @@ function gameLoop() {
     weapon.setWeapon("sword");
     weapon.resetAmmo();
 
-    // Create/destroy Tomfoolery health bars each round
+    // Create/destroy world-space health bars each round
     if (roundManager.mode.name === "Tomfoolery") {
       createTmfBars(localEntities);
+      resetWeaponCallbacks();
+    } else if (roundManager.mode.name === "Infection") {
+      createInfBars(localEntities);
+      installInfectionCallbacks();
     } else {
       destroyTmfBars();
+      destroyInfBars();
+      resetWeaponCallbacks();
     }
 
     // Host picks who is IT and broadcasts; non-host waits for setit.
@@ -710,7 +775,7 @@ function gameLoop() {
     tmfHpBar.style.background = pct > 50 ? "#44ff44" : pct > 25 ? "#ffcc00" : "#ff3300";
     tmfHpText.textContent  = `${hp} / ${TMF_MAX_HP} HP`;
 
-    // World-space bars above each local entity
+    // World-space bars above each entity
     for (const [e, bar] of tmfBars) {
       if (e.hp !== bar.lastHp || e.lives !== bar.lastLives) {
         _drawTmfBar(bar, e.hp, e.lives);
@@ -720,10 +785,23 @@ function gameLoop() {
         bar.sprite.position.set(e.position.x, e.position.y + 2.5, e.position.z);
       }
     }
+  } else if (isInfection) {
+    tmfHudEl.style.display = "none";
+    for (const bar of tmfBars.values()) bar.sprite.visible = false;
+    // World-space HP bars for Infection mode
+    for (const [e, bar] of infBars) {
+      if (e.hp !== bar.lastHp || e.isIt !== bar.lastIsIt) {
+        _drawInfBar(bar, e);
+      }
+      bar.sprite.visible = !e.isEliminated;
+      if (!e.isEliminated) {
+        bar.sprite.position.set(e.position.x, e.position.y + 2.5, e.position.z);
+      }
+    }
   } else {
     tmfHudEl.style.display = "none";
-    // Hide all bars if mode switched away
     for (const bar of tmfBars.values()) bar.sprite.visible = false;
+    for (const bar of infBars.values()) bar.sprite.visible = false;
   }
 
   // Show weapon viewmodel when weapons are active and player isn't eliminated

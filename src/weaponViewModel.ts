@@ -108,6 +108,39 @@ function buildFreezeRay(): THREE.Group {
   return g;
 }
 
+function buildBlaster(): THREE.Group {
+  const g = new THREE.Group();
+  // Barrel — thin long cylinder
+  const barrel = _cyl(0.025, 0.025, 0.44, 0x223322);
+  barrel.position.set(0, 0.03, 0);
+  g.add(barrel);
+  // Barrel tip — slightly wider ring
+  const tip = _cyl(0.038, 0.025, 0.05, 0x334433);
+  tip.position.set(0, 0.03, -0.22);
+  g.add(tip);
+  // Receiver body
+  const body = _box(0.1, 0.08, 0.22, 0x1a2e1a);
+  body.position.set(0, 0, 0.1);
+  g.add(body);
+  // Energy cell (glowing orange)
+  const cell = _sphere(0.045, 0xff6600);
+  cell.position.set(0, 0.01, 0.22);
+  g.add(cell);
+  // Inner glow
+  const glow = _sphere(0.028, 0xff9900);
+  glow.position.set(0, 0.01, 0.22);
+  g.add(glow);
+  // Grip
+  const grip = _box(0.07, 0.16, 0.07, 0x111a11);
+  grip.position.set(0, -0.1, 0.14);
+  g.add(grip);
+  // Trigger guard
+  const guard = _box(0.04, 0.04, 0.1, 0x1a2e1a);
+  guard.position.set(0, -0.06, 0.05);
+  g.add(guard);
+  return g;
+}
+
 function buildShotgun(): THREE.Group {
   const g = new THREE.Group();
   // Barrel (double — two narrow cylinders side by side)
@@ -138,6 +171,7 @@ const MODELS: Record<WeaponType, THREE.Group> = {
   rocket:  buildRocket(),
   freeze:  buildFreezeRay(),
   shotgun: buildShotgun(),
+  blaster: buildBlaster(),
 };
 
 // Resting position / rotation for each model in view-space
@@ -147,6 +181,7 @@ const POSE: Record<WeaponType, { pos: [number,number,number]; rot: [number,numbe
   rocket:  { pos: [ 0.25, -0.28, -0.60], rot: [ 0.05,  0.45,  0.00] },
   freeze:  { pos: [ 0.26, -0.28, -0.58], rot: [ 0.05,  0.40,  0.00] },
   shotgun: { pos: [ 0.25, -0.30, -0.58], rot: [ 0.05,  0.42,  0.00] },
+  blaster: { pos: [ 0.26, -0.28, -0.56], rot: [ 0.05,  0.42,  0.00] },
 };
 
 // Add all models to the weapon scene (only one visible at a time)

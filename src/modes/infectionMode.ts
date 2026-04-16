@@ -1,37 +1,128 @@
 import { Controllable } from "../types";
 import { GameMode, TAG_RADIUS } from "./gameMode";
 
+// ── Infection-mode constants ──────────────────────────────────────────────────
+export const INF_ZOMBIE_HP  = 200;
+export const INF_HEALTHY_HP = 100;
+
+/** Hits required to zombify a healthy player. */
+const HITS_TO_INFECT = 3;
+
+/** Freeze/stun duration multiplier applied to zombies. */
+const ZOMBIE_FREEZE_MULT = 0.5;
+
+/** HP dealt per sword hit to a zombie. */
+const SWORD_DMG_VS_ZOMBIE = 40;   // 5 hits to kill
+
+/** HP dealt per freeze-ray hit to a zombie. */
+const FREEZE_DMG_VS_ZOMBIE = 25;
+
+/** HP dealt per rocket splash (at full falloff = 1) to a zombie. */
+const ROCKET_SPLASH_DMG_VS_ZOMBIE = 50;
+
+/** HP dealt per shotgun pellet to a zombie. */
+const SHOTGUN_PELLET_DMG_VS_ZOMBIE = 15;
+
 export class InfectionMode implements GameMode {
   readonly name = "Infection";
 
+  /** Infection-hit counter per healthy entity. */
+  private _infectionHits = new Map<Controllable, number>();
+
+  /** Track which zombies have been fully eliminated (HP reached 0). */
+  private _deadZombies = new Set<Controllable>();
+
   onStart(entities: Controllable[]) {
-    entities.forEach(e => { e.setIt(false); e.setFrozen(false); });
-    entities[Math.floor(Math.random() * entities.length)].setIt(true);
+    this._infectionHits.clear();
+    this._deadZombies.clear();
+    entities.forEach(e => {
+      e.setIt(false);
+      e.setFrozen(false);
+      e.hp = INF_HEALTHY_HP;
+    });
+    // Pick one random zombie
+    const zombie = entities[Math.floor(Math.random() * entities.length)];
+    zombie.setIt(true);
+    zombie.hp = INF_ZOMBIE_HP;
   }
 
   update(_dt: number, entities: Controllable[]) {
-    // Infected (isIt) players spread infection on touch — stay infected
-    for (const infected of entities) {
-      if (!infected.isIt) continue;
-      for (const target of entities) {
-        if (target.isIt || target.tagImmunity > 0) continue;
-        if (infected.position.distanceTo(target.position) <= TAG_RADIUS) {
+    const zombies = entities.filter(e => e.isIt && !e.isEliminated);
+    const healthy = entities.filter(e => !e.isIt && !e.isEliminated);
+
+    // ── Zombie → healthy contact (3-hit system) ───────────────────────────────
+    for (const zombie of zombies) {
+      for (const target of healthy) {
+        if (target.tagImmunity > 0) continue;
+        if (zombie.position.distanceTo(target.position) > TAG_RADIUS) continue;
+
+        const hits = (this._infectionHits.get(target) ?? 0) + 1;
+        if (hits >= HITS_TO_INFECT) {
+          this._infectionHits.delete(target);
           target.setIt(true);
+          target.hp = INF_ZOMBIE_HP;
+          target.tagImmunity = 1.5;
+        } else {
+          this._infectionHits.set(target, hits);
+          // Brief immunity to prevent multiple hits per touch
+          target.tagImmunity = Math.max(target.tagImmunity, 0.8);
         }
       }
     }
+
+    // ── Zombie HP → eliminate when dead ──────────────────────────────────────
+    for (const zombie of zombies) {
+      if (zombie.hp <= 0 && !this._deadZombies.has(zombie)) {
+        this._deadZombies.add(zombie);
+        zombie.setEliminated(true);
+      }
+    }
+
   }
 
   getHud(local: Controllable, entities: Controllable[]) {
     const infectedCount = entities.filter(e => e.isIt).length;
-    const healthyCount = entities.filter(e => !e.isIt).length;
+    const healthyCount  = entities.filter(e => !e.isIt && !e.isEliminated).length;
     if (local.isIt) {
-      return `INFECTED! Spread it! ${healthyCount} healthy remain.`;
+      const hitsLeft = local.hp > 0
+        ? `HP: ${local.hp}/${INF_ZOMBIE_HP}`
+        : "ELIMINATED";
+      return `ZOMBIE! [${hitsLeft}]  Infect ${healthyCount} remaining!`;
     }
-    return `Stay healthy! ${infectedCount} infected, ${healthyCount} healthy.`;
+    const myHits = this._infectionHits.get(local) ?? 0;
+    const hitsLeft = HITS_TO_INFECT - myHits;
+    return `Stay healthy! ${infectedCount} zombies, ${healthyCount} healthy. (${hitsLeft} hits before zombified)`;
   }
 
   isRoundOver(entities: Controllable[]) {
-    return entities.every(e => e.isIt);
+    // Round ends when all players are either zombies or eliminated
+    return entities.every(e => e.isIt || e.isEliminated);
   }
+}
+
+// ── Weapon callbacks wired up for Infection mode ──────────────────────────────
+// Called from main.ts when the mode starts/ends.
+import type { WeaponType } from "../weapon";
+import { weaponCallbacks } from "../weapon";
+
+export function installInfectionCallbacks() {
+  // Zombies take halved freeze duration
+  weaponCallbacks.freezeDurMult = (target: Controllable) =>
+    target.isIt ? ZOMBIE_FREEZE_MULT : 1;
+
+  // Direct projectile hit damage (freeze ray, shotgun pellets)
+  weaponCallbacks.onProjectileHit = (target: Controllable, wType: WeaponType) => {
+    if (!target.isIt) return 0; // only deal HP damage to zombies
+    if (wType === "freeze")  return FREEZE_DMG_VS_ZOMBIE;
+    if (wType === "shotgun") return SHOTGUN_PELLET_DMG_VS_ZOMBIE;
+    return 0;
+  };
+
+  // Splash (rocket) damage to zombies
+  weaponCallbacks.onSplashHit = (target: Controllable, falloff: number) =>
+    target.isIt ? Math.round(ROCKET_SPLASH_DMG_VS_ZOMBIE * falloff) : 0;
+
+  // Sword swing damage to zombies
+  weaponCallbacks.onSwordHit = (target: Controllable) =>
+    target.isIt ? SWORD_DMG_VS_ZOMBIE : 0;
 }

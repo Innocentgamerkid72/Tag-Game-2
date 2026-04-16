@@ -38,7 +38,7 @@ export function buildTestMap(scene: THREE.Scene): MapResult {
   const colliders: THREE.Box3[] = [];
   const walls: THREE.Box3[] = [];
   const teleporters: Teleporter[] = [];
-  const BOUNDARY = 22;
+  const BOUNDARY = 30;
 
   const _objs: THREE.Object3D[] = [];
   function add<T extends THREE.Object3D>(o: T): T { scene.add(o); _objs.push(o); return o; }
@@ -173,34 +173,34 @@ export function buildTestMap(scene: THREE.Scene): MapResult {
   // ── Platforms ────────────────────────────────────────────────────────────────
 
   // Ring 1 — low (y=2)
-  addPlatform(-6,  2,   0,  4, 0.4, 4);
-  addPlatform( 6,  2,   0,  4, 0.4, 4);
-  addPlatform( 0,  2,   7,  4, 0.4, 4);
-  addPlatform( 0,  2,  -7,  4, 0.4, 4);
+  addPlatform(-8,  2,   0,  4, 0.4, 4);
+  addPlatform( 8,  2,   0,  4, 0.4, 4);
+  addPlatform( 0,  2,  10,  4, 0.4, 4);
+  addPlatform( 0,  2, -10,  4, 0.4, 4);
 
   // Ring 2 — diagonal mid (y=4)
-  addPlatform(-8,  4,  -8,  4, 0.4, 4, 0x6699aa);
-  addPlatform( 8,  4,  -8,  4, 0.4, 4, 0x6699aa);
-  addPlatform(-8,  4,   8,  4, 0.4, 4, 0x6699aa);
-  addPlatform( 8,  4,   8,  4, 0.4, 4, 0x6699aa);
+  addPlatform(-11,  4, -11,  4, 0.4, 4, 0x6699aa);
+  addPlatform( 11,  4, -11,  4, 0.4, 4, 0x6699aa);
+  addPlatform(-11,  4,  11,  4, 0.4, 4, 0x6699aa);
+  addPlatform( 11,  4,  11,  4, 0.4, 4, 0x6699aa);
 
   // Ring 2 — cardinal bridges
-  addPlatform(-13, 3,   0,  4, 0.4, 3, 0x886644);
-  addPlatform( 13, 3,   0,  4, 0.4, 3, 0x886644);
-  addPlatform(  0, 3,  13,  3, 0.4, 4, 0x886644);
-  addPlatform(  0, 3, -13,  3, 0.4, 4, 0x886644);
+  addPlatform(-17, 3,   0,  4, 0.4, 3, 0x886644);
+  addPlatform( 17, 3,   0,  4, 0.4, 3, 0x886644);
+  addPlatform(  0, 3,  17,  3, 0.4, 4, 0x886644);
+  addPlatform(  0, 3, -17,  3, 0.4, 4, 0x886644);
 
   // Ring 3 — elevated (y=6)
-  addPlatform(-5,  6,  -4,  3, 0.4, 3, 0x8866aa);
-  addPlatform( 5,  6,  -4,  3, 0.4, 3, 0x8866aa);
-  addPlatform(-5,  6,   4,  3, 0.4, 3, 0x8866aa);
-  addPlatform( 5,  6,   4,  3, 0.4, 3, 0x8866aa);
+  addPlatform(-7,  6,  -5,  3, 0.4, 3, 0x8866aa);
+  addPlatform( 7,  6,  -5,  3, 0.4, 3, 0x8866aa);
+  addPlatform(-7,  6,   5,  3, 0.4, 3, 0x8866aa);
+  addPlatform( 7,  6,   5,  3, 0.4, 3, 0x8866aa);
 
   // Outer ledges
-  addPlatform(-17, 5,   0,  4, 0.4, 6, 0xaa7733);
-  addPlatform( 17, 5,   0,  4, 0.4, 6, 0xaa7733);
-  addPlatform(  0, 5,  17,  6, 0.4, 4, 0xaa7733);
-  addPlatform(  0, 5, -17,  6, 0.4, 4, 0xaa7733);
+  addPlatform(-23, 5,   0,  4, 0.4, 6, 0xaa7733);
+  addPlatform( 23, 5,   0,  4, 0.4, 6, 0xaa7733);
+  addPlatform(  0, 5,  23,  6, 0.4, 4, 0xaa7733);
+  addPlatform(  0, 5, -23,  6, 0.4, 4, 0xaa7733);
 
   // Center tower
   addPlatform( 0,  9,   0,  4,   0.4, 4,   0xcc9944);
@@ -209,31 +209,31 @@ export function buildTestMap(scene: THREE.Scene): MapResult {
   // ── Ground-level walls (cover obstacles) ─────────────────────────────────────
 
   // Center cluster — creates a small maze near the ground teleporter
-  addWallOn(  3,  0,   3,   0.3, 1.8, 4);
-  addWallOn( -3,  0,  -3,   4,   1.8, 0.3);
-  addWallOn(  5,  0,  -4,   0.3, 1.8, 4);
-  addWallOn( -5,  0,   4,   4,   1.8, 0.3);
+  addWallOn(  4,  0,   4,   0.3, 1.8, 4);
+  addWallOn( -4,  0,  -4,   4,   1.8, 0.3);
+  addWallOn(  7,  0,  -5,   0.3, 1.8, 4);
+  addWallOn( -7,  0,   5,   4,   1.8, 0.3);
 
   // Left side cover
-  addWallOn(-10,  0,   5,   0.3, 2, 5);
-  addWallOn(-10,  0,  -5,   5,   2, 0.3);
+  addWallOn(-14,  0,   7,   0.3, 2, 5);
+  addWallOn(-14,  0,  -7,   5,   2, 0.3);
 
   // Right side cover
-  addWallOn( 10,  0,  -5,   0.3, 2, 5);
-  addWallOn( 10,  0,   5,   5,   2, 0.3);
+  addWallOn( 14,  0,  -7,   0.3, 2, 5);
+  addWallOn( 14,  0,   7,   5,   2, 0.3);
 
   // Near-spawn wall (behind player start at z=8)
-  addWallOn( -4,  0,  12,   0.3, 2, 5);
-  addWallOn(  4,  0,  12,   0.3, 2, 5);
+  addWallOn( -5,  0,  16,   0.3, 2, 5);
+  addWallOn(  5,  0,  16,   0.3, 2, 5);
 
   // ── Walls on elevated platforms ───────────────────────────────────────────────
 
   // Back wall on the -Z bridge
-  addWallOn(  0,  3.4, -14.5,  3, 2, 0.3);
+  addWallOn(  0,  3.4, -19.5,  3, 2, 0.3);
 
   // Side walls on the +Z outer ledge
-  addWallOn(-2.5, 5.4,  17,  0.3, 2, 4);
-  addWallOn( 2.5, 5.4,  17,  0.3, 2, 4);
+  addWallOn(-3, 5.4,  23,  0.3, 2, 4);
+  addWallOn( 3, 5.4,  23,  0.3, 2, 4);
 
   // Tower top parapet
   addWallOn( 1.1,  9.4,  0,   0.3, 1, 4,  0xddaa55);
@@ -250,20 +250,20 @@ export function buildTestMap(scene: THREE.Scene): MapResult {
   teleporters[teleporters.length - 1].link = teleporters[teleporters.length - 2];
 
   // Left Ring-1 platform ↔ Right outer ledge
-  addTeleporter(-6,  2.4,  0,   17,  6.5,  0);
-  addTeleporter(17,  5.4,  0,  -6,   3.5,  0);
+  addTeleporter(-8,  2.4,  0,   23,  6.5,  0);
+  addTeleporter(23,  5.4,  0,  -8,   3.5,  0);
   teleporters[teleporters.length - 2].link = teleporters[teleporters.length - 1];
   teleporters[teleporters.length - 1].link = teleporters[teleporters.length - 2];
 
   // +Z outer ledge ↔ -Z outer ledge
-  addTeleporter( 0,  5.4,  17,   0,  6.5, -17);
-  addTeleporter( 0,  5.4, -17,   0,  6.5,  17);
+  addTeleporter( 0,  5.4,  23,   0,  6.5, -23);
+  addTeleporter( 0,  5.4, -23,   0,  6.5,  23);
   teleporters[teleporters.length - 2].link = teleporters[teleporters.length - 1];
   teleporters[teleporters.length - 1].link = teleporters[teleporters.length - 2];
 
   // NW diagonal platform ↔ SE diagonal platform
-  addTeleporter(-8,  4.4, -8,   8,  5.5,  8);
-  addTeleporter( 8,  4.4,  8,  -8,  5.5, -8);
+  addTeleporter(-11,  4.4, -11,   11,  5.5,  11);
+  addTeleporter( 11,  4.4,  11,  -11,  5.5, -11);
   teleporters[teleporters.length - 2].link = teleporters[teleporters.length - 1];
   teleporters[teleporters.length - 1].link = teleporters[teleporters.length - 2];
 
@@ -272,42 +272,42 @@ export function buildTestMap(scene: THREE.Scene): MapResult {
 
   // Cloud 1: sweeps east–west at mid height, above the ring-3 platforms
   movingPlatforms.push(new MovingPlatform(
-    new THREE.Vector3(-12, 8.5, -4),
-    new THREE.Vector3( 12, 8.5, -4),
+    new THREE.Vector3(-16, 8.5, -5),
+    new THREE.Vector3( 16, 8.5, -5),
     4.5, 0.4, 3, 0xd8ecf8, 2.5, add, colliders
   ));
 
   // Cloud 2: sweeps north–south, slightly higher
   movingPlatforms.push(new MovingPlatform(
-    new THREE.Vector3(4, 10, -12),
-    new THREE.Vector3(4, 10,  12),
+    new THREE.Vector3(5, 10, -16),
+    new THREE.Vector3(5, 10,  16),
     3.5, 0.4, 4, 0xe0f0ff, 2.0, add, colliders
   ));
 
   // Cloud 3: small fast one near the top of the center tower
   movingPlatforms.push(new MovingPlatform(
-    new THREE.Vector3(-9, 13,  5),
-    new THREE.Vector3( 9, 13,  5),
+    new THREE.Vector3(-12, 13,  7),
+    new THREE.Vector3( 12, 13,  7),
     3, 0.4, 3, 0xcce8ff, 3.5, add, colliders
   ));
 
   // ── Trees ────────────────────────────────────────────────────────────────────
 
   // Perimeter trees
-  addTree(-18,  18);
-  addTree( 18,  18);
-  addTree(-18, -18);
-  addTree( 18, -18);
-  addTree(-18,   0);
-  addTree( 18,   0);
-  addTree(  0,  18);
-  addTree(  0, -18);
+  addTree(-25,  25);
+  addTree( 25,  25);
+  addTree(-25, -25);
+  addTree( 25, -25);
+  addTree(-25,   0);
+  addTree( 25,   0);
+  addTree(  0,  25);
+  addTree(  0, -25);
 
   // Mid-map cluster trees
-  addTree(-11,  11);
-  addTree( 11,  11);
-  addTree(-11, -11);
-  addTree( 11, -11);
+  addTree(-15,  15);
+  addTree( 15,  15);
+  addTree(-15, -15);
+  addTree( 15, -15);
 
   // Near-center small trees
   addTree(-3,   3, 0.6);
