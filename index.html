@@ -153,6 +153,22 @@
         font-size: 0.8rem;
         min-height: 1em;
       }
+      #crosshair {
+        position: fixed; top: 50%; left: 50%;
+        pointer-events: none; z-index: 10; display: none;
+        color: rgba(255,255,255,0.9);
+      }
+      #crosshair > div {
+        position: absolute;
+        background: currentColor;
+        box-shadow: 0 0 3px rgba(0,0,0,0.9);
+        border-radius: 1px;
+      }
+      .ch-l   { width: 7px; height: 2px; top: -1px; right:  4px; }
+      .ch-r   { width: 7px; height: 2px; top: -1px; left:   4px; }
+      .ch-u   { width: 2px; height: 7px; left: -1px; bottom: 4px; }
+      .ch-d   { width: 2px; height: 7px; left: -1px; top:    4px; }
+      .ch-dot { width: 2px; height: 2px; top: -1px;  left:  -1px; }
     </style>
   </head>
   <body>
@@ -192,6 +208,13 @@
         <div id="tmf-hp-bar" style="height:100%;width:100%;background:#44ff44;border-radius:4px;transition:width 0.1s,background 0.2s;"></div>
       </div>
       <div id="tmf-hp-text" style="font-size:0.7rem;color:#aaa;margin-top:3px;"></div>
+    </div>
+    <div id="crosshair">
+      <div class="ch-l"></div>
+      <div class="ch-r"></div>
+      <div class="ch-u"></div>
+      <div class="ch-d"></div>
+      <div class="ch-dot"></div>
     </div>
     <div id="weapon-hud" style="
       position:fixed; bottom:48px; left:50%; transform:translateX(-50%);

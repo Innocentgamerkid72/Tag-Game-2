@@ -5,7 +5,7 @@ import { ThirdPersonCamera } from "./camera";
 import { Teleporter } from "./testMap";
 import { Controllable } from "./types";
 import { RoundManager } from "./roundManager";
-import { WeaponSystem, WEAPON_ORDER, DEFS } from "./weapon";
+import { WeaponSystem, WEAPON_ORDER, DEFS, weaponCallbacks } from "./weapon";
 import type { WeaponType } from "./weapon";
 import { NetworkManager } from "./network";
 import { RemotePlayer } from "./remotePlayer";
@@ -259,7 +259,8 @@ const statusEl   = document.getElementById("mode-status")!;
 const coordsEl   = document.getElementById("coords")!;
 const overlayEl   = document.getElementById("transition-overlay")!;
 
-const weaponHudEl = document.getElementById("weapon-hud")!;
+const weaponHudEl  = document.getElementById("weapon-hud")!;
+const crosshairEl  = document.getElementById("crosshair")!;
 
 // ── Teleporter timer sprite ───────────────────────────────────────────────────
 const TELEPORT_COOLDOWN = 5;
@@ -310,8 +311,9 @@ let _netTickAccum = 0;
 const NET_TICK = 1 / 20; // broadcast at 20 Hz
 let adminGiveUsedRound = -1;
 // Bot weapon assignments for the current round: botIndex → WeaponType
-const botGivenWeapons = new Map<number, WeaponType>();
-const botFireTimers   = new Map<number, number>();
+const botGivenWeapons  = new Map<number, WeaponType>();
+const botFireTimers    = new Map<number, number>();
+const infBotCooldowns  = new Map<number, number>(); // per-bot weapon cooldown in infection mode
 let lastRoundId = -1;
 // Hunter mode — track bot It transitions
 
@@ -567,6 +569,75 @@ function gameLoop() {
     botFireTimers.set(botIdx, DEFS[weaponType].cooldown);
   }
 
+  // ── Infection bot weapon AI ───────────────────────────────────────────────────
+  // Zombie bots bite nearby healthy; healthy bots use blaster at range / sword up close.
+  if (roundManager.mode.name === "Infection") {
+    for (let i = 0; i < roundManager.bots.length; i++) {
+      const bot = roundManager.bots[i];
+      if (bot.isEliminated) continue;
+      const botC = bot as unknown as Controllable;
+
+      const cd = (infBotCooldowns.get(i) ?? 0) - dt;
+      infBotCooldowns.set(i, cd);
+      if (cd > 0) continue;
+
+      const origin = bot.position.clone().add(new THREE.Vector3(0, 1.4, 0));
+
+      if (botC.isIt) {
+        // Zombie bot — bite the nearest healthy player within range
+        let nearest: Controllable | null = null;
+        let nearestDist = Infinity;
+        for (const e of allEntities) {
+          if ((e as unknown) === (botC as unknown) || e.isEliminated || e.isIt) continue;
+          const d = bot.position.distanceTo(e.position);
+          if (d < nearestDist) { nearestDist = d; nearest = e; }
+        }
+        if (nearest && nearestDist < 3.2) {
+          const toTarget = new THREE.Vector3(
+            nearest.position.x - bot.position.x, 0,
+            nearest.position.z - bot.position.z,
+          ).normalize();
+          weaponCallbacks.onBiteHit(nearest);
+          nearest.velocity.x    += toTarget.x * 7;
+          nearest.velocity.z    += toTarget.z * 7;
+          nearest.velocity.y     = Math.max(nearest.velocity.y, 4);
+          nearest.knockbackTimer = 0.3;
+          infBotCooldowns.set(i, DEFS.bite.cooldown);
+        }
+      } else {
+        // Healthy bot — attack the nearest zombie
+        let nearest: Controllable | null = null;
+        let nearestDist = Infinity;
+        for (const e of allEntities) {
+          if ((e as unknown) === (botC as unknown) || e.isEliminated || !e.isIt) continue;
+          const d = bot.position.distanceTo(e.position);
+          if (d < nearestDist) { nearestDist = d; nearest = e; }
+        }
+        if (nearest) {
+          if (nearestDist < 3.5) {
+            // Sword swing: immediate hit check
+            const toTarget = new THREE.Vector3(
+              nearest.position.x - bot.position.x, 0,
+              nearest.position.z - bot.position.z,
+            ).normalize();
+            const dmg = weaponCallbacks.onSwordHit(nearest);
+            if (dmg > 0) nearest.hp = Math.max(0, nearest.hp - dmg);
+            nearest.velocity.x    += toTarget.x * 38;
+            nearest.velocity.z    += toTarget.z * 38;
+            nearest.velocity.y     = Math.max(nearest.velocity.y, 12);
+            nearest.knockbackTimer = 0.7;
+            infBotCooldowns.set(i, DEFS.sword.cooldown);
+          } else if (nearestDist < 14) {
+            // Blaster: lead-aimed projectile
+            const dir = aimWithLead(origin, nearest, DEFS.blaster.speed);
+            weapon.fireAs(scene, origin.clone().addScaledVector(dir, 0.6), dir, botC, "blaster");
+            infBotCooldowns.set(i, DEFS.blaster.cooldown);
+          }
+        }
+      }
+    }
+  }
+
   // Carry entities that are standing on a moving platform
   for (const mp of map?.movingPlatforms ?? []) {
     for (const e of allEntities) {
@@ -594,6 +665,18 @@ function gameLoop() {
   // Force zombie into bite weapon every frame
   if (isInfectionZombie) weapon.setWeapon("bite");
 
+  // ── Crosshair ─────────────────────────────────────────────────────────────────
+  const WEAPON_COLORS: Record<string, string> = {
+    rocket: "#ff2200", freeze: "#44aaff", shotgun: "#ffee33",
+    sword: "#aaddff", blaster: "#00ff44", bite: "#ff3300",
+  };
+  if (weaponsActive && input.pointerLocked && !player.isEliminated) {
+    crosshairEl.style.display = "block";
+    crosshairEl.style.color = WEAPON_COLORS[weapon.type] ?? "rgba(255,255,255,0.9)";
+  } else {
+    crosshairEl.style.display = "none";
+  }
+
   if (weaponsActive) {
     if (isInfectionZombie) {
       // Zombie — locked to bite, no switching
@@ -618,11 +701,6 @@ function gameLoop() {
     }
 
     // Weapon HUD
-    const WEAPON_COLORS: Record<string, string> = {
-      rocket: "#ff2200", freeze: "#44aaff", shotgun: "#ffee33", sword: "#aaddff",
-      blaster: "#00ff44", bite: "#ff2200",
-    };
-
     if (isInfectionZombie) {
       // Zombie HUD — just show bite slot
       weaponHudEl.innerHTML = `<div style="
@@ -710,6 +788,7 @@ function gameLoop() {
     lastRoundId = roundManager.roundId;
     botGivenWeapons.clear();
     botFireTimers.clear();
+    infBotCooldowns.clear();
     weapon.setWeapon("sword");
     weapon.resetAmmo();
 
