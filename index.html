@@ -209,6 +209,17 @@
       </div>
       <div id="tmf-hp-text" style="font-size:0.7rem;color:#aaa;margin-top:3px;"></div>
     </div>
+    <div id="sprint-bar-wrap" style="
+      position:fixed; bottom:44px; left:50%; transform:translateX(-50%);
+      width:120px; height:4px; background:rgba(0,0,0,0.45);
+      border-radius:2px; pointer-events:none; z-index:10; opacity:0;
+      transition:opacity 0.3s;
+    ">
+      <div id="sprint-bar" style="
+        height:100%; width:100%; background:#44ff88;
+        border-radius:2px; transition:width 0.05s, background 0.2s;
+      "></div>
+    </div>
     <div id="crosshair">
       <div class="ch-l"></div>
       <div class="ch-r"></div>

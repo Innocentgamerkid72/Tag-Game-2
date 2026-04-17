@@ -259,8 +259,10 @@ const statusEl   = document.getElementById("mode-status")!;
 const coordsEl   = document.getElementById("coords")!;
 const overlayEl   = document.getElementById("transition-overlay")!;
 
-const weaponHudEl  = document.getElementById("weapon-hud")!;
-const crosshairEl  = document.getElementById("crosshair")!;
+const weaponHudEl   = document.getElementById("weapon-hud")!;
+const crosshairEl   = document.getElementById("crosshair")!;
+const sprintBarWrap = document.getElementById("sprint-bar-wrap") as HTMLDivElement;
+const sprintBarFill = document.getElementById("sprint-bar")      as HTMLDivElement;
 
 // ── Teleporter timer sprite ───────────────────────────────────────────────────
 const TELEPORT_COOLDOWN = 5;
@@ -692,6 +694,18 @@ function gameLoop() {
     crosshairEl.style.color = WEAPON_COLORS[weapon.type] ?? "rgba(255,255,255,0.9)";
   } else {
     crosshairEl.style.display = "none";
+  }
+
+  // ── Sprint bar ────────────────────────────────────────────────────────────────
+  {
+    const st  = player.stamina / player.maxStamina;
+    const pct = Math.round(st * 100);
+    const full = st >= 1;
+    // Visible while sprinting or stamina is not full
+    sprintBarWrap.style.opacity = (player.isSprinting || !full) ? "1" : "0";
+    sprintBarFill.style.width   = `${pct}%`;
+    sprintBarFill.style.background =
+      st > 0.5 ? "#44ff88" : st > 0.2 ? "#ffcc44" : "#ff4444";
   }
 
   if (weaponsActive) {

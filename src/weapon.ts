@@ -339,6 +339,9 @@ class Projectile {
     }
   }
 
+  /** Reverse the projectile's direction so it flies back at the attacker. */
+  parry() { this._vel.negate(); }
+
   forceRemove(scene: THREE.Scene) { scene.remove(this.mesh); this.done = true; }
 
   private _remove() {
@@ -359,6 +362,7 @@ class SwordSwing {
   private mesh:  THREE.Group;
   private _light: THREE.PointLight;
   private _timer  = SWORD_SWING_TIME;
+  private readonly _parriedProjectiles = new Set<Projectile>();
   done = false;
 
   constructor(
@@ -428,11 +432,15 @@ class SwordSwing {
       if (sDmg > 0) e.hp = Math.max(0, e.hp - sDmg);
     }
 
-    // Parry: destroy any projectile within parry radius
+    // Parry: reflect projectiles back at the attacker (once per projectile)
     for (const p of projectiles) {
-      if (p.done) continue;
+      if (p.done || this._parriedProjectiles.has(p)) continue;
       if (this.mesh.position.distanceTo(p.mesh.position) < SWORD_PARRY_RADIUS) {
-        p.forceRemove(this._scene);
+        this._parriedProjectiles.add(p);
+        p.parry();
+        // Flash the blade bright white on contact
+        this._light.intensity = 14;
+        this._light.color.set(0xffffff);
       }
     }
 

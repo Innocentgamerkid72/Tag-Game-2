@@ -3,10 +3,13 @@ import { InputHandler } from "./input";
 import { makeItSprite } from "./tagUtils";
 import { GRAVITY } from "./physics";
 
-const MOVE_SPEED = 8;
-const JUMP_FORCE = 18;
-const PLAYER_HEIGHT = 1.8;
-const PLAYER_RADIUS = 0.4;
+const MOVE_SPEED         = 8;
+const SPRINT_SPEED       = 13.5;   // ~1.7× walk speed
+const SPRINT_STAMINA_MAX = 3.0;    // seconds of full sprint
+const STAMINA_REGEN_RATE = 0.45;   // seconds recharged per second (takes ~6.7s to refill)
+const JUMP_FORCE         = 18;
+const PLAYER_HEIGHT      = 1.8;
+const PLAYER_RADIUS      = 0.4;
 
 export class Player {
   mesh: THREE.Group;
@@ -24,6 +27,13 @@ export class Player {
 
   /** Horizontal look angle (yaw) in radians. */
   yaw = 0;
+
+  private _stamina  = SPRINT_STAMINA_MAX;
+  private _sprinting = false;
+
+  get stamina()    { return this._stamina; }
+  get maxStamina() { return SPRINT_STAMINA_MAX; }
+  get isSprinting(){ return this._sprinting; }
 
   private _body: THREE.Mesh;
   private _head: THREE.Mesh;
@@ -170,11 +180,22 @@ export class Player {
 
     if (moveDir.lengthSq() > 0) moveDir.normalize();
 
+    // Sprint (Shift) — drains stamina while held, regens when released
+    const wantSprint = input.isDown("ShiftLeft") && moveDir.lengthSq() > 0;
+    if (wantSprint && this._stamina > 0) {
+      this._sprinting = true;
+      this._stamina   = Math.max(0, this._stamina - dt);
+    } else {
+      this._sprinting = false;
+      this._stamina   = Math.min(SPRINT_STAMINA_MAX, this._stamina + STAMINA_REGEN_RATE * dt);
+    }
+
     if (this.knockbackTimer > 0) {
       this.knockbackTimer = Math.max(0, this.knockbackTimer - dt);
     } else {
-      this.velocity.x = moveDir.x * MOVE_SPEED * this.speedBoost;
-      this.velocity.z = moveDir.z * MOVE_SPEED * this.speedBoost;
+      const speed = this._sprinting ? SPRINT_SPEED : MOVE_SPEED;
+      this.velocity.x = moveDir.x * speed * this.speedBoost;
+      this.velocity.z = moveDir.z * speed * this.speedBoost;
     }
 
     // Jump
