@@ -472,7 +472,7 @@ window.addEventListener("resize", () => {
 });
 
 
-// ── Bot aim helper ────────────────────────────────────────────────────────────
+// ── Bot aim helpers ───────────────────────────────────────────────────────────
 // Returns a normalised direction from `origin` that leads `target` based on
 // projectile speed so shots land where the target will be, not where they are.
 function aimWithLead(
@@ -490,6 +490,23 @@ function aimWithLead(
     target.position.y + 0.9 - origin.y,
     leadZ  - origin.z,
   ).normalize();
+}
+
+/** Apply random angular noise to a direction — returns a new normalised vector. */
+function addAimNoise(dir: THREE.Vector3, maxAngle: number): THREE.Vector3 {
+  if (maxAngle <= 0) return dir.clone().normalize();
+  const axis = new THREE.Vector3(
+    Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5,
+  ).normalize();
+  return dir.clone().applyAxisAngle(axis, (Math.random() * 2 - 1) * maxAngle).normalize();
+}
+
+/** Returns a random aim error for a bot shot.
+ *  60 % of shots are fairly accurate; 40 % are noticeably off. */
+function botShotAngle(): number {
+  return Math.random() < 0.40
+    ? Math.random() * 0.30 + 0.12   // bad shot  : ~7 – 24 degrees
+    : Math.random() * 0.05;           // good shot : 0 – 3 degrees
 }
 
 // ── Game Loop ─────────────────────────────────────────────────────────────────
@@ -562,7 +579,7 @@ function gameLoop() {
     }
     if (nearest) {
       const origin = bot.position.clone().add(new THREE.Vector3(0, 1.4, 0));
-      const dir = aimWithLead(origin, nearest, DEFS[weaponType].speed);
+      const dir = addAimNoise(aimWithLead(origin, nearest, DEFS[weaponType].speed), botShotAngle());
       origin.addScaledVector(dir, 0.6);
       weapon.fireAs(scene, origin, dir, bot as unknown as Controllable, weaponType);
     }
@@ -628,8 +645,8 @@ function gameLoop() {
             nearest.knockbackTimer = 0.7;
             infBotCooldowns.set(i, DEFS.sword.cooldown);
           } else if (nearestDist < 14) {
-            // Blaster: lead-aimed projectile
-            const dir = aimWithLead(origin, nearest, DEFS.blaster.speed);
+            // Blaster: lead-aimed projectile with aim variance
+            const dir = addAimNoise(aimWithLead(origin, nearest, DEFS.blaster.speed), botShotAngle());
             weapon.fireAs(scene, origin.clone().addScaledVector(dir, 0.6), dir, botC, "blaster");
             infBotCooldowns.set(i, DEFS.blaster.cooldown);
           }
@@ -911,7 +928,7 @@ function gameLoop() {
       }
       bar.sprite.visible = !e.isEliminated;
       if (!e.isEliminated) {
-        bar.sprite.position.set(e.position.x, e.position.y + 2.5, e.position.z);
+        bar.sprite.position.set(e.position.x, e.position.y + 2.85, e.position.z);
       }
     }
   } else if (isInfection) {
@@ -924,7 +941,7 @@ function gameLoop() {
       }
       bar.sprite.visible = !e.isEliminated;
       if (!e.isEliminated) {
-        bar.sprite.position.set(e.position.x, e.position.y + 2.5, e.position.z);
+        bar.sprite.position.set(e.position.x, e.position.y + 2.85, e.position.z);
       }
     }
   } else {
