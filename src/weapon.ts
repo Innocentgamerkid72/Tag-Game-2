@@ -53,7 +53,7 @@ export const DEFS: Record<WeaponType, WeaponDef> = {
   rocket: {
     name: "Rocket", color: 0xff2200, lightColor: 0xff4400,
     size: 0.38, speed: 20, cooldown: 1.4, life: 4.0,
-    gravity: -18, hitForce: 34, hitForceY: 22,
+    gravity: 0, hitForce: 34, hitForceY: 22,
     splashRadius: 9, freezeSec: 0, pellets: 1, spread: 0,
     maxAmmo: 1, reloadTime: 5, regenAmmo: false,
   },
