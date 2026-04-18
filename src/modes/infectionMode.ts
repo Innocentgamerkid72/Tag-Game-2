@@ -23,12 +23,8 @@ const _infectionHits = new Map<Controllable, number>();
 export class InfectionMode implements GameMode {
   readonly name = "Infection";
 
-  /** Track which zombies have been fully eliminated (HP reached 0). */
-  private _deadZombies = new Set<Controllable>();
-
   onStart(entities: Controllable[]) {
     _infectionHits.clear();
-    this._deadZombies.clear();
     entities.forEach(e => {
       e.setIt(false);
       e.setFrozen(false);
@@ -41,13 +37,12 @@ export class InfectionMode implements GameMode {
   }
 
   update(_dt: number, entities: Controllable[]) {
-    const zombies = entities.filter(e => e.isIt && !e.isEliminated);
-
-    // ── Zombie HP → eliminate when dead ──────────────────────────────────────
-    for (const zombie of zombies) {
-      if (zombie.hp <= 0 && !this._deadZombies.has(zombie)) {
-        this._deadZombies.add(zombie);
-        zombie.setEliminated(true);
+    // Zombies have infinite lives — respawn with full HP when killed
+    for (const zombie of entities) {
+      if (!zombie.isIt || zombie.isEliminated) continue;
+      if (zombie.hp <= 0) {
+        zombie.hp = INF_ZOMBIE_HP;
+        zombie.setFrozen(false);
       }
     }
   }
@@ -56,18 +51,15 @@ export class InfectionMode implements GameMode {
     const infectedCount = entities.filter(e => e.isIt).length;
     const healthyCount  = entities.filter(e => !e.isIt && !e.isEliminated).length;
     if (local.isIt) {
-      const hitsLeft = local.hp > 0
-        ? `HP: ${local.hp}/${INF_ZOMBIE_HP}`
-        : "ELIMINATED";
-      return `ZOMBIE! [${hitsLeft}]  Infect ${healthyCount} remaining!`;
+      return `ZOMBIE! [HP: ${Math.max(0, local.hp)}/${INF_ZOMBIE_HP}]  Infect ${healthyCount} remaining!`;
     }
-    const myHits = _infectionHits.get(local) ?? 0;
+    const myHits  = _infectionHits.get(local) ?? 0;
     const hitsLeft = HITS_TO_INFECT - myHits;
     return `Stay healthy! ${infectedCount} zombies, ${healthyCount} healthy. (${hitsLeft} bites before zombified)`;
   }
 
   isRoundOver(entities: Controllable[]) {
-    // Round ends when all players are either zombies or eliminated
+    // Round ends when all players are zombies (no healthy left)
     return entities.every(e => e.isIt || e.isEliminated);
   }
 }
