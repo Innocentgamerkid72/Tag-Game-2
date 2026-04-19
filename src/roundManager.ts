@@ -13,6 +13,8 @@ import { buildTestMap, MapResult, Teleporter } from "./testMap";
 import { buildRetroCity } from "./maps/retroCity";
 import { buildSpaceRuins } from "./maps/spaceRuins";
 import { buildTomfooleryMap } from "./maps/tomfooleryMap";
+import { buildWarehouseMap } from "./maps/warehouseMap";
+import { buildTempleMap } from "./maps/templeMap";
 import { setGravity } from "./physics";
 
 const ROUND_TIME = 60;
@@ -20,8 +22,8 @@ const TRANSITION_TIME = 5;
 const HUMAN_PLAYERS = 1;
 const BOT_NAMES = ["Alpha", "Bravo", "Charlie"];
 
-const MAP_BUILDERS = [buildTestMap, buildRetroCity, buildSpaceRuins, buildTomfooleryMap];
-const MAP_NAMES    = ["Grasslands", "Retro City", "Space Ruins", "Void Arena"];
+const MAP_BUILDERS = [buildTestMap, buildRetroCity, buildSpaceRuins, buildTomfooleryMap, buildWarehouseMap, buildTempleMap];
+const MAP_NAMES    = ["Grasslands", "Retro City", "Space Ruins", "Void Arena", "Warehouse", "Temple"];
 // Indices for the exclusive Tomfoolery pairing
 const TOMFOOLERY_MAP_IDX  = 3;
 const TOMFOOLERY_MODE_IDX = 5;
