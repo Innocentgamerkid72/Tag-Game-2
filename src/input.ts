@@ -2,11 +2,13 @@ export class InputHandler {
   readonly keys: Set<string> = new Set();
   mouseDeltaX = 0;
   mouseDeltaY = 0;
-  mouseLeftPressed = false;
+  mouseLeftPressed  = false;
+  mouseRightPressed = false;
 
-  private _rawDeltaX = 0;
-  private _rawDeltaY = 0;
-  private _rawMouseLeft = false;
+  private _rawDeltaX    = 0;
+  private _rawDeltaY    = 0;
+  private _rawMouseLeft  = false;
+  private _rawMouseRight = false;
   private _pointerLocked = false;
 
   constructor(canvas: HTMLCanvasElement) {
@@ -24,10 +26,14 @@ export class InputHandler {
       canvas.requestPointerLock();
     });
 
-    // Left-click fires weapon when pointer is locked
+    // Mouse buttons — captured only when pointer is locked
     window.addEventListener("mousedown", (e) => {
-      if (e.button === 0 && this._pointerLocked) this._rawMouseLeft = true;
+      if (!this._pointerLocked) return;
+      if (e.button === 0) this._rawMouseLeft  = true;
+      if (e.button === 2) this._rawMouseRight = true;
     });
+    // Prevent right-click context menu from appearing in-game
+    window.addEventListener("contextmenu", (e) => e.preventDefault());
 
     document.addEventListener("pointerlockchange", () => {
       this._pointerLocked = document.pointerLockElement === canvas;
@@ -42,12 +48,14 @@ export class InputHandler {
 
   /** Call once per frame to consume accumulated mouse deltas and clicks. */
   flush() {
-    this.mouseDeltaX = this._rawDeltaX;
-    this.mouseDeltaY = this._rawDeltaY;
-    this.mouseLeftPressed = this._rawMouseLeft;
-    this._rawDeltaX = 0;
-    this._rawDeltaY = 0;
-    this._rawMouseLeft = false;
+    this.mouseDeltaX      = this._rawDeltaX;
+    this.mouseDeltaY      = this._rawDeltaY;
+    this.mouseLeftPressed  = this._rawMouseLeft;
+    this.mouseRightPressed = this._rawMouseRight;
+    this._rawDeltaX    = 0;
+    this._rawDeltaY    = 0;
+    this._rawMouseLeft  = false;
+    this._rawMouseRight = false;
   }
 
   isDown(code: string) {

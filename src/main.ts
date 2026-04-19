@@ -12,6 +12,7 @@ import { RemotePlayer } from "./remotePlayer";
 import type { NetMsg } from "./network";
 import { TMF_MAX_HP, TMF_MAX_LIVES } from "./modes/tomfooleryMode";
 import { INF_ZOMBIE_HP, INF_HEALTHY_HP, installInfectionCallbacks } from "./modes/infectionMode";
+import { POUNCE_COOLDOWN_MAX } from "./player";
 import { resetWeaponCallbacks } from "./weapon";
 import { setViewModelWeapon, renderViewModel } from "./weaponViewModel";
 
@@ -315,7 +316,9 @@ let adminGiveUsedRound = -1;
 // Bot weapon assignments for the current round: botIndex → WeaponType
 const botGivenWeapons  = new Map<number, WeaponType>();
 const botFireTimers    = new Map<number, number>();
-const infBotCooldowns  = new Map<number, number>(); // per-bot weapon cooldown in infection mode
+const infBotCooldowns        = new Map<number, number>(); // per-bot weapon cooldown in infection mode
+const infBotPounceCooldowns  = new Map<number, number>(); // per-bot pounce cooldown
+const pounceHitSet           = new Set<Controllable>();   // entities already hit this pounce
 let lastRoundId = -1;
 // Hunter mode — track bot It transitions
 
@@ -603,7 +606,7 @@ function gameLoop() {
       const origin = bot.position.clone().add(new THREE.Vector3(0, 1.4, 0));
 
       if (botC.isIt) {
-        // Zombie bot — bite the nearest healthy player within range
+        // Zombie bot — find nearest healthy player
         let nearest: Controllable | null = null;
         let nearestDist = Infinity;
         for (const e of allEntities) {
@@ -611,17 +614,41 @@ function gameLoop() {
           const d = bot.position.distanceTo(e.position);
           if (d < nearestDist) { nearestDist = d; nearest = e; }
         }
-        if (nearest && nearestDist < 3.2) {
+        if (nearest) {
           const toTarget = new THREE.Vector3(
             nearest.position.x - bot.position.x, 0,
             nearest.position.z - bot.position.z,
           ).normalize();
-          weaponCallbacks.onBiteHit(nearest);
-          nearest.velocity.x    += toTarget.x * 7;
-          nearest.velocity.z    += toTarget.z * 7;
-          nearest.velocity.y     = Math.max(nearest.velocity.y, 4);
-          nearest.knockbackTimer = 0.3;
-          infBotCooldowns.set(i, DEFS.bite.cooldown);
+
+          // Pounce at medium range (5–12 units) if cooldown ready
+          const pcd = (infBotPounceCooldowns.get(i) ?? 0) - dt;
+          infBotPounceCooldowns.set(i, Math.max(0, pcd));
+          if (nearestDist > 5 && nearestDist < 12 && pcd <= 0) {
+            botC.velocity.x    = toTarget.x * 32;
+            botC.velocity.z    = toTarget.z * 32;
+            botC.velocity.y    = Math.max(botC.velocity.y, 7);
+            botC.knockbackTimer = 0.32;
+            infBotPounceCooldowns.set(i, POUNCE_COOLDOWN_MAX);
+            // Immediate bite check at pounce landing
+            if (nearestDist < 4.5) {
+              weaponCallbacks.onBiteHit(nearest);
+              nearest.velocity.x    += toTarget.x * 10;
+              nearest.velocity.z    += toTarget.z * 10;
+              nearest.velocity.y     = Math.max(nearest.velocity.y, 6);
+              nearest.knockbackTimer = 0.45;
+              infBotCooldowns.set(i, DEFS.bite.cooldown);
+            }
+          }
+
+          // Regular bite when close
+          if (nearestDist < 3.2) {
+            weaponCallbacks.onBiteHit(nearest);
+            nearest.velocity.x    += toTarget.x * 7;
+            nearest.velocity.z    += toTarget.z * 7;
+            nearest.velocity.y     = Math.max(nearest.velocity.y, 4);
+            nearest.knockbackTimer = 0.3;
+            infBotCooldowns.set(i, DEFS.bite.cooldown);
+          }
         }
       } else {
         // Healthy bot — attack the nearest zombie
@@ -684,6 +711,37 @@ function gameLoop() {
   // Force zombie into bite weapon every frame
   if (isInfectionZombie) weapon.setWeapon("bite");
 
+  // ── Zombie pounce (player) ────────────────────────────────────────────────────
+  if (isInfectionZombie && !player.isEliminated) {
+    // Right-click triggers pounce
+    if (input.mouseRightPressed) {
+      const dir = new THREE.Vector3();
+      thirdPersonCam.camera.getWorldDirection(dir);
+      player.pounce(dir);
+      pounceHitSet.clear();
+    }
+    // While airborne from pounce, hit any healthy entity in range
+    if (player.isPouncing) {
+      for (const e of allEntities) {
+        if (e.isIt || e.isEliminated || pounceHitSet.has(e)) continue;
+        if (player.position.distanceTo(e.position) < 2.2) {
+          pounceHitSet.add(e);
+          weaponCallbacks.onBiteHit(e);
+          const push = new THREE.Vector3(
+            e.position.x - player.position.x, 0,
+            e.position.z - player.position.z,
+          ).normalize();
+          e.velocity.x    += push.x * 10;
+          e.velocity.z    += push.z * 10;
+          e.velocity.y     = Math.max(e.velocity.y, 6);
+          e.knockbackTimer = 0.45;
+        }
+      }
+    } else {
+      pounceHitSet.clear();
+    }
+  }
+
   // ── Crosshair ─────────────────────────────────────────────────────────────────
   const WEAPON_COLORS: Record<string, string> = {
     rocket: "#ff2200", freeze: "#44aaff", shotgun: "#ffee33",
@@ -733,11 +791,25 @@ function gameLoop() {
 
     // Weapon HUD
     if (isInfectionZombie) {
-      // Zombie HUD — just show bite slot
-      weaponHudEl.innerHTML = `<div style="
-        padding:6px 14px;font-family:monospace;font-size:13px;border-radius:6px;
-        background:#ff220033;border:2px solid #ff2200;color:#ff2200;font-weight:bold;text-align:center;
-      ">[CLICK] Bite</div>`;
+      // Zombie HUD — bite + pounce slots
+      const pcd  = player.pounceCooldown;
+      const pcdPct = Math.round((1 - pcd / POUNCE_COOLDOWN_MAX) * 100);
+      const pounceReady = pcd <= 0;
+      const pounceLabel = pounceReady
+        ? "[RMB] Pounce"
+        : `[RMB] Pounce (${pcd.toFixed(1)}s)`;
+      weaponHudEl.innerHTML = `
+        <div style="
+          padding:6px 14px;font-family:monospace;font-size:13px;border-radius:6px;
+          background:#ff220033;border:2px solid #ff2200;color:#ff2200;font-weight:bold;text-align:center;
+        ">[LMB] Bite</div>
+        <div style="
+          padding:6px 14px;font-family:monospace;font-size:13px;border-radius:6px;
+          background:${pounceReady ? "#ff660033" : "rgba(0,0,0,0.45)"};
+          border:2px solid ${pounceReady ? "#ff6600" : "rgba(255,255,255,0.2)"};
+          color:${pounceReady ? "#ff6600" : "rgba(255,255,255,0.4)"};
+          font-weight:${pounceReady ? "bold" : "normal"};text-align:center;
+        ">${pounceLabel}${pounceReady ? "" : `<div style="font-size:10px;margin-top:3px;color:#ffcc44;">${"█".repeat(Math.round(pcdPct/10))}${"░".repeat(10-Math.round(pcdPct/10))} ${pcdPct}%</div>`}</div>`;
     } else if (isInfectionHealthy) {
       // Healthy HUD — show only sword and blaster
       const infSlots: [WeaponType, number][] = [
@@ -820,6 +892,8 @@ function gameLoop() {
     botGivenWeapons.clear();
     botFireTimers.clear();
     infBotCooldowns.clear();
+    infBotPounceCooldowns.clear();
+    pounceHitSet.clear();
     weapon.setWeapon("sword");
     weapon.resetAmmo();
 

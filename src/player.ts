@@ -11,6 +11,10 @@ const JUMP_FORCE         = 18;
 const PLAYER_HEIGHT      = 1.8;
 const PLAYER_RADIUS      = 0.4;
 
+export const POUNCE_COOLDOWN_MAX = 4.0;  // seconds between pounces
+const POUNCE_SPEED    = 32;              // forward burst speed
+const POUNCE_DURATION = 0.32;            // seconds the lunge lasts
+
 export class Player {
   mesh: THREE.Group;
   velocity = new THREE.Vector3();
@@ -31,9 +35,26 @@ export class Player {
   private _stamina  = SPRINT_STAMINA_MAX;
   private _sprinting = false;
 
-  get stamina()    { return this._stamina; }
-  get maxStamina() { return SPRINT_STAMINA_MAX; }
-  get isSprinting(){ return this._sprinting; }
+  private _pounceCooldown = 0;
+  private _pounceTimer    = 0;
+
+  get stamina()        { return this._stamina; }
+  get maxStamina()     { return SPRINT_STAMINA_MAX; }
+  get isSprinting()    { return this._sprinting; }
+  get isPouncing()     { return this._pounceTimer > 0; }
+  get pounceCooldown() { return this._pounceCooldown; }
+
+  /** Launch a forward lunge in the given direction. No-op if on cooldown. */
+  pounce(dir: THREE.Vector3) {
+    if (this._pounceCooldown > 0) return;
+    const flat = new THREE.Vector3(dir.x, 0, dir.z).normalize();
+    this.velocity.x      = flat.x * POUNCE_SPEED;
+    this.velocity.z      = flat.z * POUNCE_SPEED;
+    this.velocity.y      = Math.max(this.velocity.y, 7); // small upward kick
+    this._pounceTimer    = POUNCE_DURATION;
+    this._pounceCooldown = POUNCE_COOLDOWN_MAX;
+    this.knockbackTimer  = POUNCE_DURATION; // keep movement code from overriding velocity
+  }
 
   private _body: THREE.Mesh;
   private _head: THREE.Mesh;
@@ -142,6 +163,9 @@ export class Player {
   update(dt: number, input: InputHandler, colliders: THREE.Box3[], walls: THREE.Box3[], boundary = 22, groundY = 0, voidBoundary?: number) {
     if (this.isEliminated) return;
     if (this.tagImmunity > 0) this.tagImmunity = Math.max(0, this.tagImmunity - dt);
+
+    if (this._pounceCooldown > 0) this._pounceCooldown = Math.max(0, this._pounceCooldown - dt);
+    if (this._pounceTimer    > 0) this._pounceTimer    = Math.max(0, this._pounceTimer    - dt);
 
     if (this.isFrozen) {
       this.velocity.x = 0;
