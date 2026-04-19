@@ -1,7 +1,10 @@
 import * as THREE from "three";
 import { MapResult, Teleporter } from "../testMap";
 
-const BOUNDARY = 26;
+const BOUNDARY  = 42;
+const FLOOR2_Y  = 10;   // 2nd floor elevation
+const MZ        = 28;   // mezzanine half-span (x/z from -MZ to +MZ)
+const GAP       = 5;    // half-width of center skylight hole
 
 export function buildWarehouseMap(scene: THREE.Scene): MapResult {
   const colliders: THREE.Box3[] = [];
@@ -12,19 +15,25 @@ export function buildWarehouseMap(scene: THREE.Scene): MapResult {
   function add<T extends THREE.Object3D>(o: T): T { scene.add(o); _objs.push(o); return o; }
 
   // ── Lighting ────────────────────────────────────────────────────────────────
-  scene.fog = new THREE.Fog(0x1a1208, 30, 90);
+  scene.fog = new THREE.Fog(0x140e06, 40, 130);
+  add(new THREE.AmbientLight(0xffeedd, 0.28));
 
-  const ambient = new THREE.AmbientLight(0xffeedd, 0.35);
-  add(ambient);
-
-  // Overhead industrial strip lights
-  for (const [lx, lz] of [[-10, -10], [10, -10], [-10, 10], [10, 10], [0, 0]]) {
-    const l = new THREE.PointLight(0xffcc88, 1.0, 22);
-    l.position.set(lx, 9, lz);
+  // Ground-floor strip lights in a 3×3 grid
+  for (const lx of [-22, 0, 22]) {
+    for (const lz of [-22, 0, 22]) {
+      const l = new THREE.PointLight(0xffcc88, 1.0, 32);
+      l.position.set(lx, 9, lz);
+      add(l);
+    }
+  }
+  // 2nd floor caged bulbs
+  for (const [lx, lz] of [[-18, -18], [18, -18], [-18, 18], [18, 18], [0, -18], [0, 18], [-18, 0], [18, 0]]) {
+    const l = new THREE.PointLight(0xffdd99, 0.85, 22);
+    l.position.set(lx, FLOOR2_Y + 5, lz);
     add(l);
   }
 
-  // ── Helpers ──────────────────────────────────────────────────────────────────
+  // ── Core helpers ─────────────────────────────────────────────────────────────
   function box(
     x: number, y: number, z: number,
     w: number, h: number, d: number,
@@ -39,214 +48,266 @@ export function buildWarehouseMap(scene: THREE.Scene): MapResult {
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     add(mesh);
-    const b3 = new THREE.Box3().setFromObject(mesh);
-    if (isWall) walls.push(b3); else colliders.push(b3);
-    return mesh;
+    (isWall ? walls : colliders).push(new THREE.Box3().setFromObject(mesh));
   }
 
-  // Shelf unit: two walkable levels + side walls
-  function addShelf(cx: number, cz: number, length: number) {
-    const W = 1.4;   // shelf depth
-    const H1 = 2.5;  // first shelf height
-    const H2 = 5.0;  // second shelf height
-    const THICK = 0.2;
-
-    // Vertical back panel (wall collision)
-    box(cx, 0, cz, W, H2 + 0.5, length, 0x3a3028, true);
-
-    // First shelf surface (walkable)
-    box(cx, H1, cz, W + 0.3, THICK, length, 0x5a4830);
-    colliders[colliders.length - 1]; // already added
-
-    // Second shelf surface (walkable)
-    box(cx, H2, cz, W + 0.3, THICK, length, 0x5a4830);
-
-    // Side end-caps
-    for (const zOff of [-length / 2 + 0.1, length / 2 - 0.1]) {
-      box(cx, H2 / 2, cz + zOff, W + 0.3, H2, 0.15, 0x2e2418, true);
-    }
-
-    // Cardboard boxes on upper shelf (decorative, also walkable)
-    for (let i = -1; i <= 1; i++) {
-      const bx = cx;
-      const bz = cz + i * (length / 3);
-      const bSize = 0.7 + Math.random() * 0.4;
-      box(bx, H2 + THICK, bz, bSize, bSize, bSize, 0x8b6914);
-    }
-  }
-
-  function addCrateStack(cx: number, cz: number) {
-    const colors = [0x7a5c2e, 0x8b6b35, 0x6b4f24];
-    const sizes  = [[1.2, 1.2, 1.2], [1.1, 1.1, 1.1], [1.0, 1.0, 1.0]];
-    for (let i = 0; i < 3; i++) {
-      const [w, h, d] = sizes[i];
-      box(cx + (Math.random() - 0.5) * 0.3, i * 1.2, cz + (Math.random() - 0.5) * 0.3, w, h, d, colors[i]);
-    }
-  }
-
-  function addTeleporter(
-    x: number, y: number, z: number,
-    dx: number, dy: number, dz: number,
-  ): Teleporter {
+  // Teleporter pad (yellow industrial style)
+  function addTeleporter(x: number, y: number, z: number, dx: number, dy: number, dz: number): Teleporter {
     const pad = new THREE.Mesh(
       new THREE.CylinderGeometry(0.7, 0.7, 0.15, 16),
       new THREE.MeshLambertMaterial({ color: 0xffaa00, emissive: new THREE.Color(0x553300) }),
     );
     pad.position.set(x, y + 0.08, z);
     add(pad);
-
     const ring = new THREE.Mesh(
       new THREE.TorusGeometry(0.85, 0.08, 8, 24),
-      new THREE.MeshBasicMaterial({ color: 0xffcc44 }),
+      new THREE.MeshBasicMaterial({ color: 0xffdd44 }),
     );
-    ring.position.set(x, y + 0.15, z);
+    ring.position.set(x, y + 0.16, z);
     ring.rotation.x = Math.PI / 2;
     add(ring);
-
+    const l = new THREE.PointLight(0xffaa00, 0.6, 5);
+    l.position.set(x, y + 1, z);
+    add(l);
     const canvas = document.createElement("canvas");
     canvas.width = 128; canvas.height = 128;
     const texture = new THREE.CanvasTexture(canvas);
     const sprite = new THREE.Sprite(
       new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false }),
     );
-    sprite.position.set(x, y + 1.6, z);
+    sprite.position.set(x, y + 1.8, z);
     sprite.scale.set(1.2, 1.2, 1);
     sprite.visible = false;
     add(sprite);
-
     const tp: Teleporter = {
       trigger: new THREE.Box3(
         new THREE.Vector3(x - 0.7, y, z - 0.7),
-        new THREE.Vector3(x + 0.7, y + 0.5, z + 0.7),
+        new THREE.Vector3(x + 0.7, y + 0.6, z + 0.7),
       ),
       destination: new THREE.Vector3(dx, dy, dz),
-      cooldown: 0,
-      sprite,
-      texture,
-      canvas,
+      cooldown: 0, sprite, texture, canvas,
     };
     teleporters.push(tp);
     return tp;
   }
 
-  // ── Floor ────────────────────────────────────────────────────────────────────
+  // Shelf unit: back panel + two walkable shelves + end-caps + cargo boxes
+  function addShelf(cx: number, cz: number, len: number) {
+    const W = 1.4, H1 = 2.5, H2 = 5.2, T = 0.22;
+    box(cx, 0, cz, W, H2 + 0.5, len, 0x3a3028, true);           // back panel
+    box(cx, H1, cz, W + 0.3, T, len, 0x5a4830);                  // shelf 1
+    box(cx, H2, cz, W + 0.3, T, len, 0x5a4830);                  // shelf 2
+    for (const zo of [-len / 2 + 0.1, len / 2 - 0.1]) {
+      box(cx, H2 / 2, cz + zo, W + 0.3, H2, 0.18, 0x2e2418, true); // end-cap
+    }
+    for (let i = -1; i <= 1; i++) {
+      const bs = 0.65 + Math.random() * 0.45;
+      box(cx, H2 + T, cz + i * (len / 3.2), bs, bs, bs, 0x8b6914); // cargo box
+    }
+  }
+
+  // Staircase going in +x or −x from (bx, bz), 5 steps × 2 units each → reaches FLOOR2_Y
+  function addStaircase(bx: number, bz: number, dir: 'x+' | 'x-') {
+    for (let i = 0; i < 5; i++) {
+      const sx = dir === 'x+' ? bx + i * 2 : bx - i * 2;
+      box(sx, i * 2, bz, 2.1, 2.05, 4, 0x3a3028); // step
+    }
+    // Handrails (aesthetic walls flanking stairs)
+    const rLen = 10.5, rH = 1.0, sign = dir === 'x+' ? 1 : -1;
+    for (const zo of [-2.2, 2.2]) {
+      // slanted rail approximated by a tilted box — use a flat wall for simplicity
+      walls.push(new THREE.Box3(
+        new THREE.Vector3(Math.min(bx, bx + sign * rLen) - 0.1, 0, bz + zo - 0.15),
+        new THREE.Vector3(Math.max(bx, bx + sign * rLen) + 0.1, rH + FLOOR2_Y * 0.5, bz + zo + 0.15),
+      ));
+    }
+  }
+
+  function addCrateStack(cx: number, cz: number, ht = 3) {
+    for (let i = 0; i < ht; i++) {
+      const s = 1.15 - i * 0.05;
+      box(cx + (Math.random() - 0.5) * 0.25, i * 1.15, cz + (Math.random() - 0.5) * 0.25,
+          s, 1.15, s, [0x7a5c2e, 0x8b6b35, 0x6b4f24][i % 3]);
+    }
+  }
+
+  function addForklift(x: number, z: number, ry: number) {
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.8, 1.5), new THREE.MeshLambertMaterial({ color: 0xdd8800 }));
+    body.position.y = 0.9; g.add(body);
+    const mast = new THREE.Mesh(new THREE.BoxGeometry(0.22, 4.5, 0.22), new THREE.MeshLambertMaterial({ color: 0xcc7700 }));
+    mast.position.set(-1.2, 2.25, 0); g.add(mast);
+    for (const fz of [-0.42, 0.42]) {
+      const fork = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.13, 0.2), new THREE.MeshLambertMaterial({ color: 0x888888 }));
+      fork.position.set(0.1, 0.38, fz); g.add(fork);
+    }
+    g.position.set(x, 0, z);
+    g.rotation.y = ry;
+    add(g);
+    walls.push(new THREE.Box3(new THREE.Vector3(x - 2.2, 0, z - 1.2), new THREE.Vector3(x + 2.2, 2.6, z + 1.2)));
+  }
+
+  // ── Ground floor ──────────────────────────────────────────────────────────────
   const floor = new THREE.Mesh(
     new THREE.PlaneGeometry(BOUNDARY * 2, BOUNDARY * 2),
-    new THREE.MeshLambertMaterial({ color: 0x2a2420 }),
+    new THREE.MeshLambertMaterial({ color: 0x252018 }),
   );
   floor.rotation.x = -Math.PI / 2;
   floor.receiveShadow = true;
   add(floor);
 
-  // Painted floor lines (aisle markers)
-  const lineMat = new THREE.MeshBasicMaterial({ color: 0xffaa00 });
-  for (const lx of [-7, 7]) {
-    const line = new THREE.Mesh(new THREE.PlaneGeometry(0.15, BOUNDARY * 1.6), lineMat);
-    line.rotation.x = -Math.PI / 2;
-    line.position.set(lx, 0.01, 0);
-    add(line);
+  // Yellow aisle lines
+  const lmat = new THREE.MeshBasicMaterial({ color: 0xffaa00 });
+  for (const lx of [-22, -9, 4, 17, 30]) {
+    const ln = new THREE.Mesh(new THREE.PlaneGeometry(0.18, BOUNDARY * 1.8), lmat);
+    ln.rotation.x = -Math.PI / 2;
+    ln.position.set(lx, 0.01, 0);
+    add(ln);
   }
 
-  // ── Exterior walls (all four sides) ──────────────────────────────────────────
-  const WH = 12; // wall height
-  const WL = BOUNDARY * 2;
-  // North / South
-  box(0,  0, -BOUNDARY, WL, WH, 0.8, 0x1e1a14, true);
-  box(0,  0,  BOUNDARY, WL, WH, 0.8, 0x1e1a14, true);
-  // East / West
-  box(-BOUNDARY, 0, 0, 0.8, WH, WL, 0x1e1a14, true);
-  box( BOUNDARY, 0, 0, 0.8, WH, WL, 0x1e1a14, true);
+  // ── Exterior walls ────────────────────────────────────────────────────────────
+  const WH = 16, WL = BOUNDARY * 2;
+  box(0, 0, -BOUNDARY, WL, WH, 0.9, 0x1c1710, true);
+  box(0, 0,  BOUNDARY, WL, WH, 0.9, 0x1c1710, true);
+  box(-BOUNDARY, 0, 0, 0.9, WH, WL, 0x1c1710, true);
+  box( BOUNDARY, 0, 0, 0.9, WH, WL, 0x1c1710, true);
 
-  // Corrugated roof (visual only, no collider)
-  const roof = new THREE.Mesh(
+  // Roof (visual only)
+  const roofMesh = new THREE.Mesh(
     new THREE.PlaneGeometry(WL, WL),
-    new THREE.MeshLambertMaterial({ color: 0x18130e, side: THREE.BackSide }),
+    new THREE.MeshLambertMaterial({ color: 0x14100a, side: THREE.BackSide }),
   );
-  roof.rotation.x = Math.PI / 2;
-  roof.position.y = WH;
-  add(roof);
+  roofMesh.rotation.x = Math.PI / 2;
+  roofMesh.position.y = WH;
+  add(roofMesh);
 
-  // ── Shelving aisles ───────────────────────────────────────────────────────────
-  // Three pairs of shelves, each pair faces each other across an aisle
-  for (const cx of [-8.5, 0, 8.5]) {
-    addShelf(cx - 0.7,  0, 16);   // left shelf of pair
-    addShelf(cx + 0.7,  0, 16);   // right shelf
+  // ── Interior ground-floor walls ────────────────────────────────────────────────
+  // Main E-W divider at z = 0 — two halves, gap at centre (x: −5 to +5)
+  box(-20, 0, 0, 30, 4.5, 0.55, 0x2e2820, true);   // west half
+  box( 20, 0, 0, 30, 4.5, 0.55, 0x2e2820, true);   // east half
+
+  // Secondary E-W walls creating north/south zones
+  box(-18, 0, -18, 32, 3.5, 0.4, 0x2a2418, true);  // north sub-divider (gap at x: −2 to 2)
+  box( 18, 0,  18, 32, 3.5, 0.4, 0x2a2418, true);  // south sub-divider
+
+  // N-S short walls partitioning aisles near south wall
+  box(-30, 0,  28, 0.4, 4.0, 18, 0x2a2418, true);  // far west partition
+  box( 30, 0, -28, 0.4, 4.0, 18, 0x2a2418, true);  // far east partition
+
+  // Dead-end alcove walls (NE and SW corners — create hidden pockets)
+  // NE storage room: x 25→40, z −40→−25
+  box( 32, 0, -32, 0.5, 5, 20, 0x242018, true);   // west wall of NE room
+  box( 38, 0, -24, 12, 5, 0.5, 0x242018, true);   // south wall of NE room
+  // SW storage room: x −40→−25, z 25→40
+  box(-32, 0,  32, 0.5, 5, 20, 0x242018, true);
+  box(-38, 0,  24, 12, 5, 0.5, 0x242018, true);
+
+  // Short stub walls for cover throughout ground floor
+  for (const [wx, wz, wr] of [
+    [-12, -30, false], [12, 30, false],
+    [-38, -10, true],  [38, 10, true],
+    [0, -30, false],   [0, 30, false],
+  ] as [number, number, boolean][]) {
+    if (wr) box(wx, 0, wz, 0.5, 3, 8, 0x2a2018, true);
+    else     box(wx, 0, wz, 8, 3, 0.5, 0x2a2018, true);
   }
 
-  // ── Central raised catwalk (E-W) ─────────────────────────────────────────────
-  // Catwalk platform
-  box(0, 5, 0, 34, 0.25, 2.5, 0x444038);
-  // Guard rails (walls, chest-height)
-  for (const zOff of [-1.2, 1.2]) {
-    box(0, 5.25, zOff, 34, 0.9, 0.12, 0x555040, true);
-  }
-  // Support pillars
-  for (const px of [-12, -6, 0, 6, 12]) {
-    box(px, 2.5, 0, 0.35, 5, 0.35, 0x2a2318, true);
+  // ── Shelving aisles (5 pairs, each 30 units long N-S) ────────────────────────
+  for (const cx of [-28, -14, 0, 14, 28]) {
+    addShelf(cx - 0.72, 0, 30);
+    addShelf(cx + 0.72, 0, 30);
   }
 
-  // Ramp up to catwalk on the west side
-  // (A stepped approach using stacked boxes)
-  box(-15, 0,  -4, 2, 1.8, 2, 0x3a3028, false); // step 1
-  box(-15, 1.8, -4, 2, 1.8, 2, 0x3a3028, false); // step 2
-  box(-15, 3.6, -4, 2, 1.8, 2, 0x3a3028, false); // step 3 (connects to catwalk)
-
-  // Ramp up to catwalk on the east side
-  box(15, 0,  4, 2, 1.8, 2, 0x3a3028, false);
-  box(15, 1.8, 4, 2, 1.8, 2, 0x3a3028, false);
-  box(15, 3.6, 4, 2, 1.8, 2, 0x3a3028, false);
-
-  // ── Crate clusters ────────────────────────────────────────────────────────────
+  // ── Crate clusters ───────────────────────────────────────────────────────────
   for (const [cx, cz] of [
-    [-18, -18], [18, -18], [-18, 18], [18, 18],
-    [-4,  -18], [4,  -18], [-4,  18], [4,  18],
+    [-36, -36], [36, -36], [-36, 36], [36, 36],
+    [-10, -36], [10, -36], [-10, 36], [10, 36],
+    [-36, 10],  [36, -10], [0, -36],  [0, 36],
+    [-22, -26], [22, 26],
   ]) {
-    addCrateStack(cx, cz);
+    addCrateStack(cx, cz, 2 + (Math.random() > 0.5 ? 1 : 0));
   }
 
-  // ── Forklift obstacle (decorative + wall collision) ───────────────────────────
-  {
-    const fGroup = new THREE.Group();
-    // Body
-    const fBody = new THREE.Mesh(
-      new THREE.BoxGeometry(2.5, 1.8, 1.4),
-      new THREE.MeshLambertMaterial({ color: 0xdd8800 }),
-    );
-    fBody.position.y = 0.9;
-    fGroup.add(fBody);
-    // Mast
-    const mast = new THREE.Mesh(
-      new THREE.BoxGeometry(0.2, 4, 0.2),
-      new THREE.MeshLambertMaterial({ color: 0xcc7700 }),
-    );
-    mast.position.set(-1.1, 2, 0);
-    fGroup.add(mast);
-    // Forks
-    for (const fz of [-0.4, 0.4]) {
-      const fork = new THREE.Mesh(
-        new THREE.BoxGeometry(2.0, 0.12, 0.18),
-        new THREE.MeshLambertMaterial({ color: 0x888888 }),
-      );
-      fork.position.set(0, 0.35, fz);
-      fGroup.add(fork);
-    }
-    fGroup.position.set(-20, 0, -6);
-    fGroup.rotation.y = Math.PI / 6;
-    add(fGroup);
-    walls.push(new THREE.Box3(
-      new THREE.Vector3(-22, 0, -8),
-      new THREE.Vector3(-18, 2.5, -4),
-    ));
+  // ── Forklifts ────────────────────────────────────────────────────────────────
+  addForklift(-35, -10, Math.PI / 5);
+  addForklift( 35,  10, -Math.PI / 5);
+  addForklift( 20, -35, Math.PI / 2.5);
+
+  // ── Loading dock (south exterior wall) ───────────────────────────────────────
+  box(0, 0, 40, 14, 1.5, 5, 0x2e2820);   // raised dock platform
+  // Dock bumpers
+  for (const dx of [-5, 0, 5]) {
+    box(dx, 1.5, 38, 1.2, 0.6, 0.5, 0xdd8800);
   }
 
-  // ── Loading dock platform ────────────────────────────────────────────────────
-  box(22, 0, 0, 4, 1.2, 8, 0x2e2820, false);
+  // ── 2nd Floor mezzanine ───────────────────────────────────────────────────────
+  // Four slab quadrants with a GAP×2 × GAP×2 skylight hole in the centre
+  const slabW = MZ - GAP;   // 23 units each quadrant
+  const slabCX = (MZ + GAP) / 2;  // 16.5
+
+  box(-slabCX, FLOOR2_Y, -slabCX, slabW, 0.42, slabW, 0x2e2820); // NW
+  box( slabCX, FLOOR2_Y, -slabCX, slabW, 0.42, slabW, 0x2e2820); // NE
+  box(-slabCX, FLOOR2_Y,  slabCX, slabW, 0.42, slabW, 0x2e2820); // SW
+  box( slabCX, FLOOR2_Y,  slabCX, slabW, 0.42, slabW, 0x2e2820); // SE
+
+  // Cross bridges over the skylight (+ shape, 2 units wide each)
+  box(0, FLOOR2_Y, 0, 2.2, 0.42, GAP * 2, 0x383028);  // N-S bridge
+  box(0, FLOOR2_Y, 0, GAP * 2, 0.42, 2.2, 0x383028);  // E-W bridge
+
+  // Outer perimeter railings (safety rails at mezzanine edge)
+  const F2 = FLOOR2_Y + 0.42;  // top of slab
+  box(0,    F2, -MZ, MZ * 2, 1.1, 0.22, 0x444038, true); // north rail
+  box(0,    F2,  MZ, MZ * 2, 1.1, 0.22, 0x444038, true); // south rail
+  box(-MZ,  F2, 0, 0.22, 1.1, MZ * 2, 0x444038, true);   // west rail
+  box( MZ,  F2, 0, 0.22, 1.1, MZ * 2, 0x444038, true);   // east rail
+
+  // ── 2nd floor interior walls (offices / storage bays) ────────────────────────
+  // NW quadrant: small office room
+  box(-20, F2, -22, 12, 3.5, 0.3, 0x282416, true);  // south wall
+  box(-25, F2, -19, 0.3, 3.5, 6,  0x282416, true);  // east wall (opening on west)
+
+  // NE quadrant: open storage with partial divider
+  box( 20, F2, -22, 12, 3.5, 0.3, 0x282416, true);
+  box( 22, F2, -15, 0.3, 3.5, 14, 0x282416, true);
+
+  // SE quadrant: another office
+  box( 18, F2,  22, 12, 3.5, 0.3, 0x282416, true);
+  box( 24, F2,  18, 0.3, 3.5, 8,  0x282416, true);
+
+  // SW quadrant: small bay
+  box(-18, F2,  22, 12, 3.5, 0.3, 0x282416, true);
+  box(-24, F2,  18, 0.3, 3.5, 8,  0x282416, true);
+
+  // ── Staircases (x-direction, one pair per side) ───────────────────────────────
+  // NW: climb eastward from x=−38, settle onto NW slab at x=−28
+  addStaircase(-38, -26, 'x+');
+  // NE: climb westward from x=+38, settle onto NE slab at x=+28
+  addStaircase( 38, -26, 'x-');
+  // SW
+  addStaircase(-38,  26, 'x+');
+  // SE
+  addStaircase( 38,  26, 'x-');
 
   // ── Teleporters ───────────────────────────────────────────────────────────────
-  const tp1 = addTeleporter(-20, 0, -20, 20, 0, 20);
-  const tp2 = addTeleporter( 20, 0,  20, -20, 0, -20);
-  tp1.link = tp2;
-  tp2.link = tp1;
+  // Ground floor: NW ↔ SE
+  const tp1 = addTeleporter(-36, 0, -36,  36, 1, 36);
+  const tp2 = addTeleporter( 36, 0,  36, -36, 1, -36);
+  tp1.link = tp2; tp2.link = tp1;
+
+  // Ground floor: NE ↔ SW
+  const tp3 = addTeleporter( 36, 0, -36, -36, 1, 36);
+  const tp4 = addTeleporter(-36, 0,  36,  36, 1, -36);
+  tp3.link = tp4; tp4.link = tp3;
+
+  // 2nd floor: NE quad ↔ SW quad (links the two opposite mezzanine wings)
+  const tp5 = addTeleporter( 20, F2, -20, -20, F2 + 1, 20);
+  const tp6 = addTeleporter(-20, F2,  20,  20, F2 + 1, -20);
+  tp5.link = tp6; tp6.link = tp5;
+
+  // 2nd floor: NW quad ↔ SE quad
+  const tp7 = addTeleporter(-20, F2, -20,  20, F2 + 1, 20);
+  const tp8 = addTeleporter( 20, F2,  20, -20, F2 + 1, -20);
+  tp7.link = tp8; tp8.link = tp7;
 
   // ── Dispose ──────────────────────────────────────────────────────────────────
   return {
@@ -256,7 +317,7 @@ export function buildWarehouseMap(scene: THREE.Scene): MapResult {
     hazards: [],
     boundary: BOUNDARY,
     gravity: -28,
-    background: 0x1a1208,
+    background: 0x140e06,
     spawnPos: new THREE.Vector3(0, 1, 0),
     dispose() {
       for (const o of _objs) {
