@@ -319,6 +319,7 @@ const botFireTimers    = new Map<number, number>();
 const infBotCooldowns        = new Map<number, number>(); // per-bot weapon cooldown in infection mode
 const infBotPounceCooldowns  = new Map<number, number>(); // per-bot pounce cooldown
 const pounceHitSet           = new Set<Controllable>();   // entities already hit this pounce
+const zombieRespawnTimers    = new Map<Controllable, number>(); // zombie → seconds until respawn
 let lastRoundId = -1;
 // Hunter mode — track bot It transitions
 
@@ -885,6 +886,46 @@ function gameLoop() {
   // Round manager only handles local entities — bots don't interact with remote players
   roundManager.update(dt, localEntities);
 
+  // ── Zombie respawn timers (infection mode) ────────────────────────────────────
+  if (roundManager.mode.name === "Infection") {
+    const boundary = (map?.boundary ?? 22) - 4;
+
+    // Detect newly dead zombies and start their respawn timer
+    for (const e of localEntities) {
+      if (!e.isIt || e.isEliminated || zombieRespawnTimers.has(e)) continue;
+      if (e.hp <= 0) {
+        e.setEliminated(true);
+        zombieRespawnTimers.set(e, 3.0);
+      }
+    }
+
+    // Tick timers and respawn when done
+    for (const [zombie, remaining] of zombieRespawnTimers) {
+      const next = remaining - dt;
+      if (next <= 0) {
+        zombieRespawnTimers.delete(zombie);
+        zombie.hp = INF_ZOMBIE_HP;
+        zombie.setEliminated(false);
+        zombie.setFrozen(false);
+        zombie.velocity.set(0, 0, 0);
+        zombie.position.set(
+          (Math.random() * 2 - 1) * boundary,
+          2,
+          (Math.random() * 2 - 1) * boundary,
+        );
+      } else {
+        zombieRespawnTimers.set(zombie, next);
+      }
+    }
+
+    // Override status line while the local player is waiting to respawn
+    const lpc = player as unknown as Controllable;
+    if (lpc.isIt && lpc.isEliminated) {
+      const t = zombieRespawnTimers.get(lpc) ?? 0;
+      statusEl.textContent = `DEAD — respawning in ${t.toFixed(1)}s…`;
+    }
+  }
+
   // Detect new round AFTER update() so _buildRound() changes are visible immediately.
   // This lets us override mode.onStart()'s local IT pick on the very same frame.
   if (roundManager.roundId !== lastRoundId) {
@@ -894,6 +935,7 @@ function gameLoop() {
     infBotCooldowns.clear();
     infBotPounceCooldowns.clear();
     pounceHitSet.clear();
+    zombieRespawnTimers.clear();
     weapon.setWeapon("sword");
     weapon.resetAmmo();
 

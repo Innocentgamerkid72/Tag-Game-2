@@ -36,15 +36,8 @@ export class InfectionMode implements GameMode {
     zombie.hp = INF_ZOMBIE_HP;
   }
 
-  update(_dt: number, entities: Controllable[]) {
-    // Zombies have infinite lives — respawn with full HP when killed
-    for (const zombie of entities) {
-      if (!zombie.isIt || zombie.isEliminated) continue;
-      if (zombie.hp <= 0) {
-        zombie.hp = INF_ZOMBIE_HP;
-        zombie.setFrozen(false);
-      }
-    }
+  update(_dt: number, _entities: Controllable[]) {
+    // Zombie death + respawn is handled by main.ts (3-second timer + random position)
   }
 
   getHud(local: Controllable, entities: Controllable[]) {
