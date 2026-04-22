@@ -2,8 +2,8 @@ import { Controllable } from "../types";
 import { Teleporter } from "../testMap";
 import { GameMode, TAG_RADIUS } from "./gameMode";
 
-const SABOTAGE_RANGE = 1.8;
-const SABOTAGE_TIME  = 5;
+export const SABOTAGE_RANGE = 2.2;
+export const SABOTAGE_TIME  = 2;
 
 export class HunterMode implements GameMode {
   readonly name = "Hunter";
@@ -13,7 +13,7 @@ export class HunterMode implements GameMode {
     entities[Math.floor(Math.random() * entities.length)].setIt(true);
   }
 
-  update(dt: number, entities: Controllable[], teleporters?: Teleporter[]) {
+  update(_dt: number, entities: Controllable[], teleporters?: Teleporter[]) {
     // Normal tag transfer — hunter tags others and transfers role
     for (const hunter of entities) {
       if (!hunter.isIt) continue;
@@ -37,43 +37,25 @@ export class HunterMode implements GameMode {
 
     if (!teleporters) return;
 
-    const hunter = entities.find(e => e.isIt);
-    if (!hunter) return;
-
-    // Sabotage logic: hunter standing near a teleporter pad fills the sabotage bar
+    // sabotageProgress is written each frame by main.ts (E-key hold).
+    // We only handle completion + sprite rendering here.
     for (const tp of teleporters) {
       if (tp.sabotaged) {
-        // Keep TRAP indicator visible (cooldown display takes priority when on cooldown)
-        if (tp.cooldown === 0) {
-          tp.sprite.visible = true;
-          this._drawTrapSprite(tp);
-        }
+        if (tp.cooldown === 0) { tp.sprite.visible = true; this._drawTrapSprite(tp); }
         continue;
       }
 
-      const cx = (tp.trigger.min.x + tp.trigger.max.x) / 2;
-      const cz = (tp.trigger.min.z + tp.trigger.max.z) / 2;
-      const hPos = hunter.position;
-      const dx = hPos.x - cx;
-      const dz = hPos.z - cz;
-      const dist = Math.sqrt(dx * dx + dz * dz);
-
-      if (dist <= SABOTAGE_RANGE) {
-        tp.sabotageProgress = (tp.sabotageProgress ?? 0) + dt;
+      const prog = tp.sabotageProgress ?? 0;
+      if (prog >= SABOTAGE_TIME) {
+        tp.sabotaged = true;
+        tp.sabotageProgress = 0;
+        if (tp.cooldown === 0) { tp.sprite.visible = true; this._drawTrapSprite(tp); }
+      } else if (prog > 0) {
         if (tp.cooldown === 0) {
           tp.sprite.visible = true;
-          this._drawProgressSprite(tp, Math.min(1, tp.sabotageProgress / SABOTAGE_TIME));
+          this._drawProgressSprite(tp, prog / SABOTAGE_TIME);
         }
-        if (tp.sabotageProgress >= SABOTAGE_TIME) {
-          tp.sabotaged = true;
-          tp.sabotageProgress = 0;
-          if (tp.cooldown === 0) {
-            tp.sprite.visible = true;
-            this._drawTrapSprite(tp);
-          }
-        }
-      } else if ((tp.sabotageProgress ?? 0) > 0) {
-        tp.sabotageProgress = 0;
+      } else {
         if (tp.cooldown === 0) tp.sprite.visible = false;
       }
     }
@@ -81,7 +63,7 @@ export class HunterMode implements GameMode {
 
   getHud(local: Controllable) {
     if (local.isIt) {
-      return "You are the HUNTER! Stand near teleporters to sabotage them!";
+      return "You are the HUNTER! Hold [E] near a teleporter for 2s to trap it. Anyone who steps on it while you're setting up gets frozen!";
     }
     return "The hunter is coming — watch out for trapped teleporters!";
   }

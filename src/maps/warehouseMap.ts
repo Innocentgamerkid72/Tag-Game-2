@@ -309,6 +309,15 @@ export function buildWarehouseMap(scene: THREE.Scene): MapResult {
   const tp8 = addTeleporter( 20, F2,  20, -20, F2 + 1, -20);
   tp7.link = tp8; tp8.link = tp7;
 
+  // Vertical: ground floor ↔ 2nd floor (bypasses staircases)
+  const tp9  = addTeleporter( -8, 0,  8,  -16, F2 + 1,  16); // GF SW → 2F SW
+  const tp10 = addTeleporter(-16, F2, 16,   8,        1,  -8); // 2F SW → GF NE
+  tp9.link = tp10; tp10.link = tp9;
+
+  const tp11 = addTeleporter(  8, 0, -8,   16, F2 + 1, -16); // GF NE → 2F NE
+  const tp12 = addTeleporter( 16, F2,-16,  -8,        1,   8); // 2F NE → GF SW
+  tp11.link = tp12; tp12.link = tp11;
+
   // ── Dispose ──────────────────────────────────────────────────────────────────
   return {
     colliders,

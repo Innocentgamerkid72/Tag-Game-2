@@ -11,6 +11,7 @@ import { NetworkManager } from "./network";
 import { RemotePlayer } from "./remotePlayer";
 import type { NetMsg } from "./network";
 import { TMF_MAX_HP, TMF_MAX_LIVES } from "./modes/tomfooleryMode";
+import { SABOTAGE_RANGE, SABOTAGE_TIME } from "./modes/hunterMode";
 import { INF_HEALTHY_HP, installInfectionCallbacks, infectionHits, HITS_TO_INFECT } from "./modes/infectionMode";
 import { AcidPuddle } from "./maps/acidPuddle";
 
@@ -358,6 +359,9 @@ const infBotPounceCooldowns  = new Map<number, number>(); // per-bot pounce cool
 const pounceHitSet           = new Set<Controllable>();   // entities already hit this pounce
 const zombieRespawnTimers    = new Map<Controllable, number>(); // zombie → seconds until respawn
 let lastRoundId = -1;
+
+// ── Hunter trap-freeze timers ────────────────────────────────────────────────
+const trapFreezeTimers = new Map<Controllable, number>(); // entity → seconds until unfreeze
 
 // ── Haunted mode lights ───────────────────────────────────────────────────────
 let hauntedItLight:   THREE.PointLight | null = null;
@@ -773,6 +777,62 @@ function gameLoop() {
     }
   }
 
+  // ── Hunter: E-key teleporter sabotage + trap-freeze ──────────────────────────
+  const isHunterMode = roundManager.mode.name === "Hunter";
+  if (isHunterMode) {
+    const tps = map?.teleporters ?? [];
+
+    // Tick and expire trap-freeze timers
+    for (const [e, t] of trapFreezeTimers) {
+      const next = t - dt;
+      if (next <= 0) { trapFreezeTimers.delete(e); e.setFrozen(false); }
+      else            trapFreezeTimers.set(e, next);
+    }
+
+    // Trap-freeze: non-IT entity steps on a teleporter mid-setup
+    for (const e of allEntities) {
+      if (e.isIt || e.isEliminated || trapFreezeTimers.has(e)) continue;
+      for (const tp of tps) {
+        if ((tp.sabotageProgress ?? 0) <= 0 || tp.cooldown > 0) continue;
+        if (tp.trigger.containsPoint(e.position)) {
+          e.setFrozen(true);
+          trapFreezeTimers.set(e, 5.0);
+          tp.cooldown = 1; // brief cooldown so the same pad doesn't re-trigger immediately
+          if (tp.link) tp.link.cooldown = 1;
+        }
+      }
+    }
+
+    // E-key sabotage (player must be IT/hunter)
+    const lpc = player as unknown as Controllable;
+    if (lpc.isIt && !player.isEliminated) {
+      let nearestTp: (typeof tps)[0] | null = null;
+      let nearestDist = Infinity;
+      for (const tp of tps) {
+        if (tp.sabotaged) continue;
+        const cx = (tp.trigger.min.x + tp.trigger.max.x) / 2;
+        const cz = (tp.trigger.min.z + tp.trigger.max.z) / 2;
+        const dist = Math.hypot(player.position.x - cx, player.position.z - cz);
+        if (dist < SABOTAGE_RANGE && dist < nearestDist) { nearestDist = dist; nearestTp = tp; }
+      }
+
+      if (nearestTp && input.isDown("KeyE")) {
+        nearestTp.sabotageProgress = Math.min(
+          SABOTAGE_TIME,
+          (nearestTp.sabotageProgress ?? 0) + dt,
+        );
+      } else {
+        // E released or moved away — reset whichever pad was in progress
+        for (const tp of tps) {
+          if (!tp.sabotaged && (tp.sabotageProgress ?? 0) > 0 && tp !== nearestTp) {
+            tp.sabotageProgress = 0;
+          }
+        }
+        if (!input.isDown("KeyE") && nearestTp) nearestTp.sabotageProgress = 0;
+      }
+    }
+  }
+
   // Carry entities that are standing on a moving platform
   for (const mp of map?.movingPlatforms ?? []) {
     for (const e of allEntities) {
@@ -1128,6 +1188,7 @@ function gameLoop() {
     infBotPounceCooldowns.clear();
     pounceHitSet.clear();
     zombieRespawnTimers.clear();
+    trapFreezeTimers.clear();
     zombieClasses.clear();
     vomitCooldowns.clear();
     for (const p of acidPuddles) p.dispose();
