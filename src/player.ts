@@ -44,16 +44,19 @@ export class Player {
   get isPouncing()     { return this._pounceTimer > 0; }
   get pounceCooldown() { return this._pounceCooldown; }
 
-  /** Launch a forward lunge in the given direction. No-op if on cooldown. */
-  pounce(dir: THREE.Vector3) {
+  /** Launch a forward lunge. Optional overrides for speed, duration, and cooldown. */
+  pounce(dir: THREE.Vector3, speedOverride?: number, durationOverride?: number, cooldownOverride?: number) {
     if (this._pounceCooldown > 0) return;
+    const spd = speedOverride   ?? POUNCE_SPEED;
+    const dur = durationOverride ?? POUNCE_DURATION;
+    const cd  = cooldownOverride ?? POUNCE_COOLDOWN_MAX;
     const flat = new THREE.Vector3(dir.x, 0, dir.z).normalize();
-    this.velocity.x      = flat.x * POUNCE_SPEED;
-    this.velocity.z      = flat.z * POUNCE_SPEED;
-    this.velocity.y      = Math.max(this.velocity.y, 7); // small upward kick
-    this._pounceTimer    = POUNCE_DURATION;
-    this._pounceCooldown = POUNCE_COOLDOWN_MAX;
-    this.knockbackTimer  = POUNCE_DURATION; // keep movement code from overriding velocity
+    this.velocity.x      = flat.x * spd;
+    this.velocity.z      = flat.z * spd;
+    this.velocity.y      = Math.max(this.velocity.y, 7);
+    this._pounceTimer    = dur;
+    this._pounceCooldown = cd;
+    this.knockbackTimer  = dur;
   }
 
   private _body: THREE.Mesh;

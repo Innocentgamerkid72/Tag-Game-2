@@ -14,7 +14,7 @@ export const weaponCallbacks = {
   /** Extra HP damage dealt by a sword swing (default 0). */
   onSwordHit:      (_target: Controllable): number => 0,
   /** Called when a zombie bite lands on an entity (infection mode). */
-  onBiteHit:       (_target: Controllable): void => {},
+  onBiteHit:       (_target: Controllable, _shooter?: Controllable): void => {},
 };
 
 /** Reset all weapon callbacks to their no-op defaults. */
@@ -510,7 +510,7 @@ class BiteSwing {
       e.velocity.z    += (toE.z / dist || 0) * BITE_FORCE;
       e.velocity.y     = Math.max(e.velocity.y, BITE_FORCE_Y);
       e.knockbackTimer = 0.3;
-      weaponCallbacks.onBiteHit(e);
+      weaponCallbacks.onBiteHit(e, shooter);
     }
 
     if (this._timer <= 0) {

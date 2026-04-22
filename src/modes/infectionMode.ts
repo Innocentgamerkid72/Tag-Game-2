@@ -5,8 +5,8 @@ import { GameMode } from "./gameMode";
 export const INF_ZOMBIE_HP  = 200;
 export const INF_HEALTHY_HP = 100;
 
-/** Hits required to zombify a healthy player. */
-const HITS_TO_INFECT = 3;
+/** Hits required to zombify a healthy player (regular / speedy / trapper). */
+export const HITS_TO_INFECT = 3;
 
 /** Freeze/stun duration multiplier applied to zombies. */
 const ZOMBIE_FREEZE_MULT = 0.5;
@@ -17,14 +17,14 @@ const SWORD_DMG_VS_ZOMBIE = 30;
 /** HP dealt per blaster shot to a zombie (25% damage reduction applied). */
 const BLASTER_DMG_VS_ZOMBIE = 15;
 
-// Module-level so both InfectionMode and installInfectionCallbacks can share it
-const _infectionHits = new Map<Controllable, number>();
+// Exported so main.ts can override onBiteHit with class-aware logic.
+export const infectionHits = new Map<Controllable, number>();
 
 export class InfectionMode implements GameMode {
   readonly name = "Infection";
 
   onStart(entities: Controllable[]) {
-    _infectionHits.clear();
+    infectionHits.clear();
     entities.forEach(e => {
       e.setIt(false);
       e.setFrozen(false);
@@ -46,52 +46,46 @@ export class InfectionMode implements GameMode {
     if (local.isIt) {
       return `ZOMBIE! [HP: ${Math.max(0, local.hp)}/${INF_ZOMBIE_HP}]  Infect ${healthyCount} remaining!`;
     }
-    const myHits  = _infectionHits.get(local) ?? 0;
+    const myHits  = infectionHits.get(local) ?? 0;
     const hitsLeft = HITS_TO_INFECT - myHits;
     return `Stay healthy! ${infectedCount} zombies, ${healthyCount} healthy. (${hitsLeft} bites before zombified)`;
   }
 
   isRoundOver(entities: Controllable[]) {
-    // Round ends when all players are zombies (no healthy left)
     return entities.every(e => e.isIt || e.isEliminated);
   }
 }
 
 // ── Weapon callbacks wired up for Infection mode ──────────────────────────────
-// Called from main.ts when the mode starts/ends.
 import type { WeaponType } from "../weapon";
 import { weaponCallbacks } from "../weapon";
 
 export function installInfectionCallbacks() {
-  // Zombies take halved freeze duration
   weaponCallbacks.freezeDurMult = (target: Controllable) =>
     target.isIt ? ZOMBIE_FREEZE_MULT : 1;
 
-  // Direct projectile hit damage — only sword+blaster deal damage to zombies (25% reduction applied)
   weaponCallbacks.onProjectileHit = (target: Controllable, wType: WeaponType) => {
-    if (!target.isIt) return 0; // only deal HP damage to zombies
+    if (!target.isIt) return 0;
     if (wType === "blaster") return BLASTER_DMG_VS_ZOMBIE;
     return 0;
   };
 
-  // No splash (rocket/freeze not available to healthy in infection)
   weaponCallbacks.onSplashHit = () => 0;
 
-  // Sword swing damage to zombies (25% reduction)
   weaponCallbacks.onSwordHit = (target: Controllable) =>
     target.isIt ? SWORD_DMG_VS_ZOMBIE : 0;
 
-  // Bite: track hits per healthy — 3 bites converts to zombie
-  weaponCallbacks.onBiteHit = (target: Controllable) => {
+  // Default bite handler — main.ts replaces this with a zombie-class-aware version.
+  weaponCallbacks.onBiteHit = (target: Controllable, _shooter?: Controllable) => {
     if (target.isIt || target.isEliminated) return;
-    const hits = (_infectionHits.get(target) ?? 0) + 1;
+    const hits = (infectionHits.get(target) ?? 0) + 1;
     if (hits >= HITS_TO_INFECT) {
-      _infectionHits.delete(target);
+      infectionHits.delete(target);
       target.setIt(true);
       target.hp = INF_ZOMBIE_HP;
       target.tagImmunity = 1.5;
     } else {
-      _infectionHits.set(target, hits);
+      infectionHits.set(target, hits);
     }
   };
 }

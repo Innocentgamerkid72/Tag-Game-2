@@ -11,8 +11,9 @@ import { NetworkManager } from "./network";
 import { RemotePlayer } from "./remotePlayer";
 import type { NetMsg } from "./network";
 import { TMF_MAX_HP, TMF_MAX_LIVES } from "./modes/tomfooleryMode";
-import { INF_ZOMBIE_HP, INF_HEALTHY_HP, installInfectionCallbacks } from "./modes/infectionMode";
-import { POUNCE_COOLDOWN_MAX } from "./player";
+import { INF_HEALTHY_HP, installInfectionCallbacks, infectionHits, HITS_TO_INFECT } from "./modes/infectionMode";
+import { AcidPuddle } from "./maps/acidPuddle";
+
 import { resetWeaponCallbacks } from "./weapon";
 import { setViewModelWeapon, renderViewModel } from "./weaponViewModel";
 
@@ -132,7 +133,7 @@ function _drawInfBar(bar: InfBar, e: Controllable) {
   const { ctx, canvas, tex } = bar;
   const W = canvas.width, H = canvas.height;
   ctx.clearRect(0, 0, W, H);
-  const maxHp = e.isIt ? INF_ZOMBIE_HP : INF_HEALTHY_HP;
+  const maxHp = e.isIt ? (ZOMBIE_CLASS_STATS[zombieClasses.get(e) ?? "regular"].hp) : INF_HEALTHY_HP;
   const t = Math.max(0, e.hp / maxHp);
   // Background
   ctx.fillStyle = "#222";
@@ -264,6 +265,41 @@ const weaponHudEl   = document.getElementById("weapon-hud")!;
 const crosshairEl   = document.getElementById("crosshair")!;
 const sprintBarWrap = document.getElementById("sprint-bar-wrap") as HTMLDivElement;
 const sprintBarFill = document.getElementById("sprint-bar")      as HTMLDivElement;
+const zombiePickerEl      = document.getElementById("zombie-picker")!;
+const zombiePickerTimerEl = document.getElementById("zombie-picker-timer")!;
+const zombiePickerBtnsEl  = document.getElementById("zombie-picker-buttons")!;
+
+function _buildZombiePicker() {
+  zombiePickerBtnsEl.innerHTML = ZOMBIE_CLASSES.map(cls => {
+    const s = ZOMBIE_CLASS_STATS[cls];
+    return `<button data-zclass="${cls}" style="
+      padding:12px 16px; font-family:monospace; font-size:0.82rem; cursor:pointer;
+      background:rgba(0,0,0,0.75); color:${s.color};
+      border:2px solid ${s.color}44; border-radius:8px; min-width:130px; text-align:center;
+      transition:border-color 0.1s, background 0.1s;
+    ">
+      <div style="font-weight:bold;font-size:1rem;letter-spacing:1px;">${s.label.toUpperCase()}</div>
+      <div style="font-size:0.7rem;color:#aaa;margin-top:4px;">${s.hp} HP &nbsp;×${s.speedMult}</div>
+      <div style="font-size:0.68rem;color:#888;margin-top:3px;">${s.desc}</div>
+    </button>`;
+  }).join("");
+  zombiePickerBtnsEl.querySelectorAll("button[data-zclass]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      pendingZombieClass = (btn as HTMLElement).dataset.zclass as ZombieClass;
+      _refreshPickerHighlight();
+    });
+  });
+}
+function _refreshPickerHighlight() {
+  const sel = pendingZombieClass ?? "regular";
+  zombiePickerBtnsEl.querySelectorAll<HTMLButtonElement>("button[data-zclass]").forEach(btn => {
+    const cls = btn.dataset.zclass as ZombieClass;
+    const s   = ZOMBIE_CLASS_STATS[cls];
+    const active = cls === sel;
+    btn.style.borderColor = active ? s.color : s.color + "44";
+    btn.style.background  = active ? s.color + "22" : "rgba(0,0,0,0.75)";
+  });
+}
 
 // ── Teleporter timer sprite ───────────────────────────────────────────────────
 const TELEPORT_COOLDOWN = 5;
@@ -321,6 +357,27 @@ const infBotPounceCooldowns  = new Map<number, number>(); // per-bot pounce cool
 const pounceHitSet           = new Set<Controllable>();   // entities already hit this pounce
 const zombieRespawnTimers    = new Map<Controllable, number>(); // zombie → seconds until respawn
 let lastRoundId = -1;
+
+// ── Zombie class system ───────────────────────────────────────────────────────
+type ZombieClass = "regular" | "hefty" | "speedy" | "trapper";
+interface ZombieClassStats {
+  hp: number; speedMult: number; pounceSpeed: number;
+  pounceCooldown: number; instantInfect: boolean; hasVomit: boolean;
+  label: string; color: string; desc: string;
+}
+const ZOMBIE_CLASS_STATS: Record<ZombieClass, ZombieClassStats> = {
+  regular: { hp: 200,  speedMult: 1.00, pounceSpeed: 32, pounceCooldown: 4.0, instantInfect: false, hasVomit: false, label: "Regular", color: "#ff4400", desc: "Balanced · 3 bites to infect" },
+  hefty:   { hp: 500,  speedMult: 0.62, pounceSpeed: 18, pounceCooldown: 6.0, instantInfect: true,  hasVomit: false, label: "Hefty",   color: "#cc2200", desc: "500 HP · Very slow · ONE BITE infects" },
+  speedy:  { hp: 100,  speedMult: 1.45, pounceSpeed: 52, pounceCooldown: 2.0, instantInfect: false, hasVomit: false, label: "Speedy",  color: "#ff8800", desc: "100 HP · Very fast · Far pounce" },
+  trapper: { hp: 180,  speedMult: 1.00, pounceSpeed: 0,  pounceCooldown: 999, instantInfect: false, hasVomit: true,  label: "Trapper", color: "#44cc22", desc: "RMB vomits acid puddles that slow survivors" },
+};
+const ZOMBIE_CLASSES: ZombieClass[] = ["regular", "hefty", "speedy", "trapper"];
+
+const zombieClasses   = new Map<Controllable, ZombieClass>(); // active class per zombie
+const vomitCooldowns  = new Map<Controllable, number>();       // trapper vomit cooldown
+const acidPuddles: AcidPuddle[] = [];
+let pendingZombieClass: ZombieClass | null = null;
+let pickerBuilt = false;
 // Hunter mode — track bot It transitions
 
 const ROW  = "width:100%;padding:6px 8px;cursor:pointer;font-family:monospace;font-size:0.8rem;border-radius:4px;margin-bottom:4px;text-align:left;";
@@ -515,6 +572,27 @@ function botShotAngle(): number {
     : Math.random() * 0.05;           // good shot : 0 – 3 degrees
 }
 
+/** Turn a healthy player into a zombie via the respawn/picker flow. */
+function _infectPlayer(target: Controllable) {
+  if (target.isIt || target.isEliminated) return;
+  infectionHits.delete(target);
+  target.setIt(true);
+  target.setEliminated(true);
+  zombieRespawnTimers.set(target, 3.0);
+}
+
+function _botBite(biter: Controllable, _cls: ZombieClass, target: Controllable, toTarget: THREE.Vector3, instantInfect: boolean) {
+  if (instantInfect) {
+    _infectPlayer(target);
+  } else {
+    weaponCallbacks.onBiteHit(target, biter);
+  }
+  target.velocity.x    += toTarget.x * 7;
+  target.velocity.z    += toTarget.z * 7;
+  target.velocity.y     = Math.max(target.velocity.y, 4);
+  target.knockbackTimer = 0.3;
+}
+
 // ── Game Loop ─────────────────────────────────────────────────────────────────
 let prevTime = performance.now();
 
@@ -615,39 +693,43 @@ function gameLoop() {
           const d = bot.position.distanceTo(e.position);
           if (d < nearestDist) { nearestDist = d; nearest = e; }
         }
+        const botCls   = zombieClasses.get(botC) ?? "regular";
+        const botStats = ZOMBIE_CLASS_STATS[botCls];
+
         if (nearest) {
           const toTarget = new THREE.Vector3(
             nearest.position.x - bot.position.x, 0,
             nearest.position.z - bot.position.z,
           ).normalize();
 
-          // Pounce at medium range (5–12 units) if cooldown ready
-          const pcd = (infBotPounceCooldowns.get(i) ?? 0) - dt;
-          infBotPounceCooldowns.set(i, Math.max(0, pcd));
-          if (nearestDist > 5 && nearestDist < 12 && pcd <= 0) {
-            botC.velocity.x    = toTarget.x * 32;
-            botC.velocity.z    = toTarget.z * 32;
-            botC.velocity.y    = Math.max(botC.velocity.y, 7);
-            botC.knockbackTimer = 0.32;
-            infBotPounceCooldowns.set(i, POUNCE_COOLDOWN_MAX);
-            // Immediate bite check at pounce landing
-            if (nearestDist < 4.5) {
-              weaponCallbacks.onBiteHit(nearest);
-              nearest.velocity.x    += toTarget.x * 10;
-              nearest.velocity.z    += toTarget.z * 10;
-              nearest.velocity.y     = Math.max(nearest.velocity.y, 6);
-              nearest.knockbackTimer = 0.45;
-              infBotCooldowns.set(i, DEFS.bite.cooldown);
+          if (botStats.hasVomit) {
+            // Trapper bot: vomit acid puddle near target
+            const vcd = (vomitCooldowns.get(botC) ?? 0) - dt;
+            vomitCooldowns.set(botC, Math.max(0, vcd));
+            if (nearestDist < 7 && vcd <= 0) {
+              acidPuddles.push(new AcidPuddle(scene, bot.position.x, bot.position.y, bot.position.z));
+              vomitCooldowns.set(botC, 5.0);
+            }
+          } else {
+            // Pounce at medium range if cooldown ready
+            const pcd = (infBotPounceCooldowns.get(i) ?? 0) - dt;
+            infBotPounceCooldowns.set(i, Math.max(0, pcd));
+            if (nearestDist > 5 && nearestDist < 14 && pcd <= 0) {
+              botC.velocity.x    = toTarget.x * botStats.pounceSpeed;
+              botC.velocity.z    = toTarget.z * botStats.pounceSpeed;
+              botC.velocity.y    = Math.max(botC.velocity.y, 7);
+              botC.knockbackTimer = 0.32;
+              infBotPounceCooldowns.set(i, botStats.pounceCooldown);
+              if (nearestDist < 5) {
+                _botBite(botC, botCls, nearest, toTarget, botStats.instantInfect);
+                infBotCooldowns.set(i, DEFS.bite.cooldown);
+              }
             }
           }
 
-          // Regular bite when close
+          // Melee bite when close
           if (nearestDist < 3.2) {
-            weaponCallbacks.onBiteHit(nearest);
-            nearest.velocity.x    += toTarget.x * 7;
-            nearest.velocity.z    += toTarget.z * 7;
-            nearest.velocity.y     = Math.max(nearest.velocity.y, 4);
-            nearest.knockbackTimer = 0.3;
+            _botBite(botC, botCls, nearest, toTarget, botStats.instantInfect);
             infBotCooldowns.set(i, DEFS.bite.cooldown);
           }
         }
@@ -712,26 +794,54 @@ function gameLoop() {
   // Force zombie into bite weapon every frame
   if (isInfectionZombie) weapon.setWeapon("bite");
 
-  // ── Zombie pounce (player) ────────────────────────────────────────────────────
+  // ── Zombie pounce / vomit (player) ───────────────────────────────────────────
   if (isInfectionZombie && !player.isEliminated) {
-    // Right-click triggers pounce
+    const lpc      = player as unknown as Controllable;
+    const zombieCls = zombieClasses.get(lpc) ?? "regular";
+    const zombieStats = ZOMBIE_CLASS_STATS[zombieCls];
+
     if (input.mouseRightPressed) {
-      const dir = new THREE.Vector3();
-      thirdPersonCam.camera.getWorldDirection(dir);
-      player.pounce(dir);
-      pounceHitSet.clear();
+      if (zombieStats.hasVomit) {
+        // Trapper: vomit an acid puddle at feet
+        const vcd = vomitCooldowns.get(lpc) ?? 0;
+        if (vcd <= 0) {
+          acidPuddles.push(new AcidPuddle(scene, player.position.x, player.position.y, player.position.z));
+          vomitCooldowns.set(lpc, 5.0);
+        }
+      } else {
+        // Regular / Hefty / Speedy: class-specific pounce
+        const dir = new THREE.Vector3();
+        thirdPersonCam.camera.getWorldDirection(dir);
+        player.pounce(dir, zombieStats.pounceSpeed, 0.32, zombieStats.pounceCooldown);
+        pounceHitSet.clear();
+      }
     }
-    // While airborne from pounce, hit any healthy entity in range
+
+    // Tick vomit cooldown
+    if (vomitCooldowns.has(lpc)) {
+      vomitCooldowns.set(lpc, Math.max(0, (vomitCooldowns.get(lpc) ?? 0) - dt));
+    }
+
+    // Tick and remove expired acid puddles
+    for (let i = acidPuddles.length - 1; i >= 0; i--) {
+      if (!acidPuddles[i].update(dt)) {
+        acidPuddles[i].dispose();
+        acidPuddles.splice(i, 1);
+      }
+    }
+
+    // Pounce hit detection (class-aware bite/infect)
     if (player.isPouncing) {
       for (const e of allEntities) {
         if (e.isIt || e.isEliminated || pounceHitSet.has(e)) continue;
         if (player.position.distanceTo(e.position) < 2.2) {
           pounceHitSet.add(e);
-          weaponCallbacks.onBiteHit(e);
-          const push = new THREE.Vector3(
-            e.position.x - player.position.x, 0,
-            e.position.z - player.position.z,
-          ).normalize();
+          if (zombieStats.instantInfect) {
+            _infectPlayer(e);
+          } else {
+            weaponCallbacks.onBiteHit(e, lpc);
+          }
+          const push = new THREE.Vector3(e.position.x - player.position.x, 0, e.position.z - player.position.z).normalize();
           e.velocity.x    += push.x * 10;
           e.velocity.z    += push.z * 10;
           e.velocity.y     = Math.max(e.velocity.y, 6);
@@ -792,25 +902,44 @@ function gameLoop() {
 
     // Weapon HUD
     if (isInfectionZombie) {
-      // Zombie HUD — bite + pounce slots
-      const pcd  = player.pounceCooldown;
-      const pcdPct = Math.round((1 - pcd / POUNCE_COOLDOWN_MAX) * 100);
-      const pounceReady = pcd <= 0;
-      const pounceLabel = pounceReady
-        ? "[RMB] Pounce"
-        : `[RMB] Pounce (${pcd.toFixed(1)}s)`;
+      // Zombie HUD — class-aware bite + pounce/vomit slots
+      const lpc2 = player as unknown as Controllable;
+      const zombieCls2  = zombieClasses.get(lpc2) ?? "regular";
+      const zombieStats2 = ZOMBIE_CLASS_STATS[zombieCls2];
+
+      let rmbSlot: string;
+      if (zombieStats2.hasVomit) {
+        const vcd = vomitCooldowns.get(lpc2) ?? 0;
+        const vReady = vcd <= 0;
+        const vPct   = vReady ? 100 : Math.round((1 - vcd / 5.0) * 100);
+        rmbSlot = `<div style="
+          padding:6px 14px;font-family:monospace;font-size:13px;border-radius:6px;
+          background:${vReady ? "#44cc2233" : "rgba(0,0,0,0.45)"};
+          border:2px solid ${vReady ? "#44cc22" : "rgba(255,255,255,0.2)"};
+          color:${vReady ? "#44cc22" : "rgba(255,255,255,0.4)"};
+          font-weight:${vReady ? "bold" : "normal"};text-align:center;
+        ">${vReady ? "[RMB] Vomit" : `[RMB] Vomit (${vcd.toFixed(1)}s)`}${vReady ? "" : `<div style="font-size:10px;margin-top:3px;color:#88ff44;">${"█".repeat(Math.round(vPct/10))}${"░".repeat(10-Math.round(vPct/10))} ${vPct}%</div>`}</div>`;
+      } else {
+        const pcd     = player.pounceCooldown;
+        const maxPcd  = zombieStats2.pounceCooldown;
+        const pPct    = Math.round((1 - pcd / maxPcd) * 100);
+        const pReady  = pcd <= 0;
+        rmbSlot = `<div style="
+          padding:6px 14px;font-family:monospace;font-size:13px;border-radius:6px;
+          background:${pReady ? "#ff660033" : "rgba(0,0,0,0.45)"};
+          border:2px solid ${pReady ? "#ff6600" : "rgba(255,255,255,0.2)"};
+          color:${pReady ? "#ff6600" : "rgba(255,255,255,0.4)"};
+          font-weight:${pReady ? "bold" : "normal"};text-align:center;
+        ">${pReady ? "[RMB] Pounce" : `[RMB] Pounce (${pcd.toFixed(1)}s)`}${pReady ? "" : `<div style="font-size:10px;margin-top:3px;color:#ffcc44;">${"█".repeat(Math.round(pPct/10))}${"░".repeat(10-Math.round(pPct/10))} ${pPct}%</div>`}</div>`;
+      }
+
       weaponHudEl.innerHTML = `
         <div style="
           padding:6px 14px;font-family:monospace;font-size:13px;border-radius:6px;
-          background:#ff220033;border:2px solid #ff2200;color:#ff2200;font-weight:bold;text-align:center;
-        ">[LMB] Bite</div>
-        <div style="
-          padding:6px 14px;font-family:monospace;font-size:13px;border-radius:6px;
-          background:${pounceReady ? "#ff660033" : "rgba(0,0,0,0.45)"};
-          border:2px solid ${pounceReady ? "#ff6600" : "rgba(255,255,255,0.2)"};
-          color:${pounceReady ? "#ff6600" : "rgba(255,255,255,0.4)"};
-          font-weight:${pounceReady ? "bold" : "normal"};text-align:center;
-        ">${pounceLabel}${pounceReady ? "" : `<div style="font-size:10px;margin-top:3px;color:#ffcc44;">${"█".repeat(Math.round(pcdPct/10))}${"░".repeat(10-Math.round(pcdPct/10))} ${pcdPct}%</div>`}</div>`;
+          background:${zombieStats2.color}22;border:2px solid ${zombieStats2.color};
+          color:${zombieStats2.color};font-weight:bold;text-align:center;
+        ">[LMB] Bite &nbsp;<span style="opacity:0.7;font-size:11px;">[${zombieStats2.label}]</span></div>
+        ${rmbSlot}`;
     } else if (isInfectionHealthy) {
       // Healthy HUD — show only sword and blaster
       const infSlots: [WeaponType, number][] = [
@@ -886,6 +1015,29 @@ function gameLoop() {
   // Round manager only handles local entities — bots don't interact with remote players
   roundManager.update(dt, localEntities);
 
+  // ── Zombie class speed multipliers + acid puddle slow ─────────────────────────
+  if (isInfection) {
+    for (const e of localEntities) {
+      if (!e.isIt || e.isEliminated) continue;
+      e.speedBoost *= ZOMBIE_CLASS_STATS[zombieClasses.get(e) ?? "regular"].speedMult;
+    }
+    for (const puddle of acidPuddles) {
+      for (const e of allEntities) {
+        if (e.isIt || e.isEliminated) continue;
+        if (puddle.containsXZ(e.position.x, e.position.z)) e.speedBoost *= puddle.slowFactor;
+      }
+    }
+    // Override status line for local zombie (class-aware)
+    const lpcSt = player as unknown as Controllable;
+    if (lpcSt.isIt && !lpcSt.isEliminated) {
+      const cls2  = zombieClasses.get(lpcSt) ?? "regular";
+      const st2   = ZOMBIE_CLASS_STATS[cls2];
+      const hc    = localEntities.filter(e => !e.isIt && !e.isEliminated).length;
+      const hpStr = `${Math.max(0, lpcSt.hp)}/${st2.hp}`;
+      statusEl.textContent = `[${st2.label.toUpperCase()} ZOMBIE] HP: ${hpStr}  |  Infect ${hc} remaining!`;
+    }
+  }
+
   // ── Zombie respawn timers (infection mode) ────────────────────────────────────
   if (roundManager.mode.name === "Infection") {
     const boundary = (map?.boundary ?? 22) - 4;
@@ -904,9 +1056,22 @@ function gameLoop() {
       const next = remaining - dt;
       if (next <= 0) {
         zombieRespawnTimers.delete(zombie);
-        zombie.hp = INF_ZOMBIE_HP;
+        // Determine class: player picks, bots get random
+        const lpc2 = player as unknown as Controllable;
+        let cls: ZombieClass;
+        if (zombie === lpc2) {
+          cls = pendingZombieClass ?? "regular";
+          pendingZombieClass = null;
+          pickerBuilt = false;
+          zombiePickerEl.style.display = "none";
+        } else {
+          cls = ZOMBIE_CLASSES[Math.floor(Math.random() * ZOMBIE_CLASSES.length)];
+        }
+        zombieClasses.set(zombie, cls);
+        zombie.hp = ZOMBIE_CLASS_STATS[cls].hp;
         zombie.setEliminated(false);
         zombie.setFrozen(false);
+        zombie.tagImmunity = 1.5;
         zombie.velocity.set(0, 0, 0);
         zombie.position.set(
           (Math.random() * 2 - 1) * boundary,
@@ -918,11 +1083,21 @@ function gameLoop() {
       }
     }
 
-    // Override status line while the local player is waiting to respawn
+    // Local zombie waiting to respawn: show picker + override status
     const lpc = player as unknown as Controllable;
-    if (lpc.isIt && lpc.isEliminated) {
+    if (lpc.isIt && lpc.isEliminated && zombieRespawnTimers.has(lpc)) {
       const t = zombieRespawnTimers.get(lpc) ?? 0;
       statusEl.textContent = `DEAD — respawning in ${t.toFixed(1)}s…`;
+      // Show picker
+      zombiePickerEl.style.display = "flex";
+      zombiePickerTimerEl.textContent = `Respawning in ${t.toFixed(1)}s — selection: ${(pendingZombieClass ?? "regular").toUpperCase()}`;
+      if (!pickerBuilt) {
+        pickerBuilt = true;
+        _buildZombiePicker();
+      }
+      _refreshPickerHighlight();
+    } else if (!lpc.isEliminated) {
+      zombiePickerEl.style.display = "none";
     }
   }
 
@@ -936,6 +1111,13 @@ function gameLoop() {
     infBotPounceCooldowns.clear();
     pounceHitSet.clear();
     zombieRespawnTimers.clear();
+    zombieClasses.clear();
+    vomitCooldowns.clear();
+    for (const p of acidPuddles) p.dispose();
+    acidPuddles.length = 0;
+    pendingZombieClass = null;
+    pickerBuilt = false;
+    zombiePickerEl.style.display = "none";
     weapon.setWeapon("sword");
     weapon.resetAmmo();
 
@@ -946,6 +1128,24 @@ function gameLoop() {
     } else if (roundManager.mode.name === "Infection") {
       createInfBars(localEntities);
       installInfectionCallbacks();
+      // Assign initial zombie class and install class-aware bite callback
+      for (const e of localEntities) {
+        if (e.isIt) zombieClasses.set(e, "regular");
+      }
+      weaponCallbacks.onBiteHit = (target: Controllable, shooter?: Controllable) => {
+        if (target.isIt || target.isEliminated) return;
+        const cls = shooter ? (zombieClasses.get(shooter) ?? "regular") : "regular";
+        if (ZOMBIE_CLASS_STATS[cls].instantInfect) {
+          _infectPlayer(target);
+        } else {
+          const hits = (infectionHits.get(target) ?? 0) + 1;
+          if (hits >= HITS_TO_INFECT) {
+            _infectPlayer(target);
+          } else {
+            infectionHits.set(target, hits);
+          }
+        }
+      };
     } else {
       destroyTmfBars();
       destroyInfBars();

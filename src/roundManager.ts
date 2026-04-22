@@ -15,6 +15,8 @@ import { buildSpaceRuins } from "./maps/spaceRuins";
 import { buildTomfooleryMap } from "./maps/tomfooleryMap";
 import { buildWarehouseMap } from "./maps/warehouseMap";
 import { buildTempleMap } from "./maps/templeMap";
+import { buildSavannaMap } from "./maps/savannaMap";
+import { buildArcticMap } from "./maps/arcticMap";
 import { setGravity } from "./physics";
 
 const ROUND_TIME = 60;
@@ -22,8 +24,8 @@ const TRANSITION_TIME = 5;
 const HUMAN_PLAYERS = 1;
 const BOT_NAMES = ["Alpha", "Bravo", "Charlie"];
 
-const MAP_BUILDERS = [buildTestMap, buildRetroCity, buildSpaceRuins, buildTomfooleryMap, buildWarehouseMap, buildTempleMap];
-const MAP_NAMES    = ["Grasslands", "Retro City", "Space Ruins", "Void Arena", "Warehouse", "Temple"];
+const MAP_BUILDERS = [buildTestMap, buildRetroCity, buildSpaceRuins, buildTomfooleryMap, buildWarehouseMap, buildTempleMap, buildSavannaMap, buildArcticMap];
+const MAP_NAMES    = ["Grasslands", "Retro City", "Space Ruins", "Void Arena", "Warehouse", "Temple", "Savanna", "Arctic"];
 // Indices for the exclusive Tomfoolery pairing
 const TOMFOOLERY_MAP_IDX  = 3;
 const TOMFOOLERY_MODE_IDX = 5;
