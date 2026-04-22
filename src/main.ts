@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { InputHandler } from "./input";
 import { Player } from "./player";
-import { ThirdPersonCamera } from "./camera";
+import { ThirdPersonCamera, FirstPersonCamera } from "./camera";
 import { Teleporter } from "./testMap";
 import { Controllable } from "./types";
 import { RoundManager } from "./roundManager";
@@ -49,6 +49,7 @@ const player = new Player(scene);
 player.position.set(0, 2, 8);
 
 const thirdPersonCam = new ThirdPersonCamera();
+const firstPersonCam = new FirstPersonCamera();
 const input = new InputHandler(renderer.domElement);
 const weapon = new WeaponSystem();
 
@@ -358,6 +359,10 @@ const pounceHitSet           = new Set<Controllable>();   // entities already hi
 const zombieRespawnTimers    = new Map<Controllable, number>(); // zombie → seconds until respawn
 let lastRoundId = -1;
 
+// ── Haunted mode lights ───────────────────────────────────────────────────────
+let hauntedItLight:   THREE.PointLight | null = null;
+let hauntedFlashlight: THREE.SpotLight | null = null;
+
 // ── Zombie class system ───────────────────────────────────────────────────────
 type ZombieClass = "regular" | "hefty" | "speedy" | "trapper";
 interface ZombieClassStats {
@@ -532,6 +537,7 @@ nicknameInput.focus();
 window.addEventListener("resize", () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
   thirdPersonCam.onResize();
+  firstPersonCam.onResize();
 });
 
 
@@ -781,7 +787,18 @@ function gameLoop() {
     fp.preUpdate(dt, allEntities);
   }
 
-  thirdPersonCam.update(player.position, player.yaw, input);
+  const isHaunted = roundManager.mode.name === "Haunted";
+
+  if (isHaunted) {
+    firstPersonCam.update(player.position, player.yaw, input);
+    // Hide local player mesh in first-person
+    player.mesh.visible = false;
+  } else {
+    thirdPersonCam.update(player.position, player.yaw, input);
+    player.mesh.visible = !player.isEliminated;
+  }
+
+  const activeCamera = isHaunted ? firstPersonCam.camera : thirdPersonCam.camera;
 
   const isTomfoolery = roundManager.mode.name === "Tomfoolery";
   const isInfection  = roundManager.mode.name === "Infection";
@@ -811,7 +828,7 @@ function gameLoop() {
       } else {
         // Regular / Hefty / Speedy: class-specific pounce
         const dir = new THREE.Vector3();
-        thirdPersonCam.camera.getWorldDirection(dir);
+        activeCamera.getWorldDirection(dir);
         player.pounce(dir, zombieStats.pounceSpeed, 0.32, zombieStats.pounceCooldown);
         pounceHitSet.clear();
       }
@@ -895,7 +912,7 @@ function gameLoop() {
     // Fire on left click
     if (input.mouseLeftPressed && !player.isEliminated) {
       const dir = new THREE.Vector3();
-      thirdPersonCam.camera.getWorldDirection(dir);
+      activeCamera.getWorldDirection(dir);
       const origin = player.position.clone().add(new THREE.Vector3(0, 1.4, 0)).addScaledVector(dir, 0.6);
       weapon.fire(scene, origin, dir, player as unknown as import("./types").Controllable);
     }
@@ -1118,6 +1135,8 @@ function gameLoop() {
     pendingZombieClass = null;
     pickerBuilt = false;
     zombiePickerEl.style.display = "none";
+    if (hauntedItLight)   { scene.remove(hauntedItLight);   hauntedItLight   = null; }
+    if (hauntedFlashlight){ scene.remove(hauntedFlashlight); hauntedFlashlight = null; }
     weapon.setWeapon("sword");
     weapon.resetAmmo();
 
@@ -1283,8 +1302,42 @@ function gameLoop() {
   // Show weapon viewmodel when weapons are active and player isn't eliminated
   setViewModelWeapon(weaponsActive && !player.isEliminated ? weapon.type : null);
 
+  // ── Haunted mode: ghost IT glow + player flashlight ───────────────────────
+  if (isHaunted) {
+    // IT red pulsing glow (visible to everyone through the fog)
+    const itEntity = allEntities.find(e => e.isIt && !e.isEliminated);
+    if (itEntity) {
+      if (!hauntedItLight) {
+        hauntedItLight = new THREE.PointLight(0xff1100, 3.5, 18);
+        scene.add(hauntedItLight);
+      }
+      hauntedItLight.position.set(itEntity.position.x, itEntity.position.y + 1.5, itEntity.position.z);
+      hauntedItLight.intensity = 3.0 + Math.sin(performance.now() * 0.004) * 0.8;
+    } else if (hauntedItLight) {
+      scene.remove(hauntedItLight);
+      hauntedItLight = null;
+    }
+
+    // Local flashlight (SpotLight following camera direction)
+    if (!player.isEliminated) {
+      if (!hauntedFlashlight) {
+        hauntedFlashlight = new THREE.SpotLight(0xfff5dd, 2.2, 24, Math.PI / 9, 0.35);
+        scene.add(hauntedFlashlight);
+        scene.add(hauntedFlashlight.target);
+      }
+      const flashDir = new THREE.Vector3();
+      activeCamera.getWorldDirection(flashDir);
+      hauntedFlashlight.position.set(player.position.x, player.position.y + 1.55, player.position.z);
+      hauntedFlashlight.target.position.copy(hauntedFlashlight.position).addScaledVector(flashDir, 12);
+      hauntedFlashlight.target.updateMatrixWorld();
+    }
+  } else {
+    if (hauntedItLight)   { scene.remove(hauntedItLight);   hauntedItLight   = null; }
+    if (hauntedFlashlight){ scene.remove(hauntedFlashlight); hauntedFlashlight = null; }
+  }
+
   renderer.autoClear = true;
-  renderer.render(scene, thirdPersonCam.camera);
+  renderer.render(scene, activeCamera);
   renderer.autoClear = false;
   renderViewModel(renderer, window.innerWidth / window.innerHeight);
   renderer.autoClear = true;

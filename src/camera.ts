@@ -6,6 +6,43 @@ const CAM_HEIGHT_OFFSET = 2.5;
 const MIN_PITCH = -0.4; // radians
 const MAX_PITCH = 1.0;
 
+const FP_EYE_HEIGHT = 1.55;
+const FP_MIN_PITCH  = -Math.PI * 0.45;
+const FP_MAX_PITCH  =  Math.PI * 0.45;
+
+export class FirstPersonCamera {
+  readonly camera: THREE.PerspectiveCamera;
+  pitch = 0;
+
+  constructor() {
+    this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.05, 500);
+  }
+
+  update(playerPosition: THREE.Vector3, yaw: number, input: InputHandler) {
+    this.pitch -= input.mouseDeltaY * 0.002;
+    this.pitch = Math.max(FP_MIN_PITCH, Math.min(FP_MAX_PITCH, this.pitch));
+
+    this.camera.position.set(
+      playerPosition.x,
+      playerPosition.y + FP_EYE_HEIGHT,
+      playerPosition.z,
+    );
+
+    // Build look direction from yaw + pitch
+    const lookTarget = new THREE.Vector3(
+      playerPosition.x - Math.sin(yaw) * Math.cos(this.pitch),
+      playerPosition.y + FP_EYE_HEIGHT + Math.sin(this.pitch),
+      playerPosition.z - Math.cos(yaw) * Math.cos(this.pitch),
+    );
+    this.camera.lookAt(lookTarget);
+  }
+
+  onResize() {
+    this.camera.aspect = window.innerWidth / window.innerHeight;
+    this.camera.updateProjectionMatrix();
+  }
+}
+
 export class ThirdPersonCamera {
   camera: THREE.PerspectiveCamera;
   pitch = 0.3; // vertical angle

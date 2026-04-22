@@ -9,6 +9,7 @@ import { HotPotatoMode } from "./modes/hotPotatoMode";
 import { InfectionMode } from "./modes/infectionMode";
 import { HunterMode } from "./modes/hunterMode";
 import { TomfooleryMode } from "./modes/tomfooleryMode";
+import { HauntedMode } from "./modes/hauntedMode";
 import { buildTestMap, MapResult, Teleporter } from "./testMap";
 import { buildRetroCity } from "./maps/retroCity";
 import { buildSpaceRuins } from "./maps/spaceRuins";
@@ -17,6 +18,7 @@ import { buildWarehouseMap } from "./maps/warehouseMap";
 import { buildTempleMap } from "./maps/templeMap";
 import { buildSavannaMap } from "./maps/savannaMap";
 import { buildArcticMap } from "./maps/arcticMap";
+import { buildHauntedMap } from "./maps/hauntedMap";
 import { setGravity } from "./physics";
 
 const ROUND_TIME = 60;
@@ -24,12 +26,15 @@ const TRANSITION_TIME = 5;
 const HUMAN_PLAYERS = 1;
 const BOT_NAMES = ["Alpha", "Bravo", "Charlie"];
 
-const MAP_BUILDERS = [buildTestMap, buildRetroCity, buildSpaceRuins, buildTomfooleryMap, buildWarehouseMap, buildTempleMap, buildSavannaMap, buildArcticMap];
-const MAP_NAMES    = ["Grasslands", "Retro City", "Space Ruins", "Void Arena", "Warehouse", "Temple", "Savanna", "Arctic"];
+const MAP_BUILDERS = [buildTestMap, buildRetroCity, buildSpaceRuins, buildTomfooleryMap, buildWarehouseMap, buildTempleMap, buildSavannaMap, buildArcticMap, buildHauntedMap];
+const MAP_NAMES    = ["Grasslands", "Retro City", "Space Ruins", "Void Arena", "Warehouse", "Temple", "Savanna", "Arctic", "Graveyard"];
 // Indices for the exclusive Tomfoolery pairing
 const TOMFOOLERY_MAP_IDX  = 3;
 const TOMFOOLERY_MODE_IDX = 5;
-const MODES: GameMode[] = [new TagMode(), new FreezeTagMode(), new HotPotatoMode(), new InfectionMode(), new HunterMode(), new TomfooleryMode()];
+// Haunted mode always plays on the Graveyard map
+const HAUNTED_MAP_IDX  = 8;
+const HAUNTED_MODE_IDX = 6;
+const MODES: GameMode[] = [new TagMode(), new FreezeTagMode(), new HotPotatoMode(), new InfectionMode(), new HunterMode(), new TomfooleryMode(), new HauntedMode()];
 
 export class RoundManager {
   private _timer = ROUND_TIME;
@@ -205,10 +210,12 @@ export class RoundManager {
       let nextMap = this._mapIdx;
       if (this._modeIdx === TOMFOOLERY_MODE_IDX) {
         nextMap = TOMFOOLERY_MAP_IDX;
+      } else if (this._modeIdx === HAUNTED_MODE_IDX) {
+        nextMap = HAUNTED_MAP_IDX;
       } else {
         for (let tries = 0; tries < 20; tries++) {
           const candidate = (this._mapIdx + 1 + Math.floor(Math.random() * (MAP_BUILDERS.length - 1))) % MAP_BUILDERS.length;
-          if (candidate === TOMFOOLERY_MAP_IDX) continue;
+          if (candidate === TOMFOOLERY_MAP_IDX || candidate === HAUNTED_MAP_IDX) continue;
           nextMap = candidate;
           break;
         }
