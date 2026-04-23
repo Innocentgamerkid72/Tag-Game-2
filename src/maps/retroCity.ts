@@ -274,13 +274,10 @@ export function buildRetroCity(scene: THREE.Scene): MapResult {
     deck.position.set(0, OVER_Y, 8);
     deck.castShadow = true;
     deck.receiveShadow = true;
+    // Only the top surface is a collider — no wall below so players can walk under
     colliders.push(new THREE.Box3(
-      new THREE.Vector3(-28, OVER_Y, 8 - OVER_W / 2),
-      new THREE.Vector3( 28, OVER_Y + OVER_T, 8 + OVER_W / 2),
-    ));
-    walls.push(new THREE.Box3(
-      new THREE.Vector3(-28, 0, 8 - OVER_W / 2 - 0.3),
-      new THREE.Vector3( 28, OVER_Y, 8 + OVER_W / 2 + 0.3),
+      new THREE.Vector3(-28, OVER_Y - OVER_T / 2, 8 - OVER_W / 2),
+      new THREE.Vector3( 28, OVER_Y + OVER_T / 2, 8 + OVER_W / 2),
     ));
   }
   // Guardrails (visual only)

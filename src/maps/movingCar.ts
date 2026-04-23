@@ -2,8 +2,8 @@ import * as THREE from "three";
 import { Controllable } from "../types";
 
 const CAR_SPEED     = 9;    // units/s along road
-const KNOCK_FORCE   = 26;   // units/s applied in travel direction on hit
-const KNOCK_UP      = 9;    // units/s upward on hit
+const KNOCK_FORCE   = 38;   // units/s applied in travel direction on hit
+const KNOCK_UP      = 14;   // units/s upward on hit
 const HIT_HALF_LEN  = 1.2;  // half-length of car along travel axis
 const HIT_HALF_W    = 0.65; // half-width of car perpendicular to travel
 const HIT_HEIGHT    = 1.8;  // max entity y to be struck
