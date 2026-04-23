@@ -24,16 +24,44 @@ export function buildRetroCity(scene: THREE.Scene): MapResult {
   ground.receiveShadow = true;
   add(ground);
 
-  // Road markings
-  const roadMat = new THREE.MeshBasicMaterial({ color: 0x333344 });
-  const roadH = new THREE.Mesh(new THREE.PlaneGeometry(BOUNDARY * 2, 4), roadMat);
-  roadH.rotation.x = -Math.PI / 2;
-  roadH.position.y = 0.01;
-  add(roadH);
-  const roadV = new THREE.Mesh(new THREE.PlaneGeometry(4, BOUNDARY * 2), roadMat);
-  roadV.rotation.x = -Math.PI / 2;
-  roadV.position.y = 0.01;
-  add(roadV);
+  // ── Roads ───────────────────────────────────────────────────────────────────
+  const roadMat  = new THREE.MeshBasicMaterial({ color: 0x333344 });
+  const hwayMat  = new THREE.MeshBasicMaterial({ color: 0x222233 }); // slightly darker highway
+  const lineMat  = new THREE.MeshBasicMaterial({ color: 0xffffaa });
+
+  function addRoad(z: number, w: number, mat: THREE.Material) {
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(BOUNDARY * 2, w), mat);
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.set(0, 0.01, z);
+    add(mesh);
+  }
+  function addRoadV(x: number, w: number, mat: THREE.Material) {
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, BOUNDARY * 2), mat);
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.set(x, 0.01, 0);
+    add(mesh);
+  }
+  function addDashLine(x: number, z: number, len: number, horiz: boolean) {
+    const mesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(horiz ? len : 0.15, horiz ? 0.15 : len), lineMat
+    );
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.set(x, 0.02, z);
+    add(mesh);
+  }
+
+  // Main cross roads (centre highway, 8 units wide)
+  addRoad(0, 8, hwayMat);
+  addRoadV(0, 8, hwayMat);
+  // Centre divider dashes
+  for (let i = -30; i <= 30; i += 5) addDashLine(i, 0, 3, true);
+  for (let i = -30; i <= 30; i += 5) addDashLine(0, i, 3, false);
+
+  // Side streets (4 units wide) at ±16 on each axis
+  addRoad(-16, 4, roadMat);
+  addRoad( 16, 4, roadMat);
+  addRoadV(-16, 4, roadMat);
+  addRoadV( 16, 4, roadMat);
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
   function addBuilding(x: number, z: number, w: number, h: number, d: number, color: number) {
@@ -212,13 +240,85 @@ export function buildRetroCity(scene: THREE.Scene): MapResult {
   hazards.push(new Trampoline(scene, -19, 0,   0,  2.2, add, colliders)); // near h=9 (W)
   hazards.push(new Trampoline(scene,   0, 0,  19,  2.2, add, colliders)); // near h=10 (N)
 
-  // ── Moving cars (4 cars on the two roads) ────────────────────────────────────
-  // Horizontal road (z ≈ 0): two cars going in opposite directions
-  hazards.push(new MovingCar("x", -30, -1.2, -30, 30,  1, 0xcc2222, add)); // red, westbound lane
-  hazards.push(new MovingCar("x",  30,  1.2, -30, 30, -1, 0xccaa00, add)); // yellow, eastbound lane
-  // Vertical road (x ≈ 0): two cars going in opposite directions
-  hazards.push(new MovingCar("z", -30, -1.2, -30, 30,  1, 0x2244cc, add)); // blue, southbound lane
-  hazards.push(new MovingCar("z",  14,  1.2, -30, 30,  1, 0x22aa44, add)); // green, staggered start
+  // ── Moving cars ──────────────────────────────────────────────────────────────
+  // Main highway (z ≈ 0), two lanes
+  hazards.push(new MovingCar("x", -30, -2.0, -30, 30,  1, 0xcc2222, add)); // red, W→E
+  hazards.push(new MovingCar("x",  10,  2.0, -30, 30, -1, 0xccaa00, add)); // yellow, E→W staggered
+  // Main highway (x ≈ 0), two lanes
+  hazards.push(new MovingCar("z", -30, -2.0, -30, 30,  1, 0x2244cc, add)); // blue, S→N
+  hazards.push(new MovingCar("z",   0,  2.0, -30, 30, -1, 0xaa22cc, add)); // purple, N→S
+  // Side street z = -16
+  hazards.push(new MovingCar("x", -25, -16.8, -30, 30,  1, 0xff8800, add)); // orange
+  hazards.push(new MovingCar("x",   5, -15.2, -30, 30, -1, 0x00aaff, add)); // cyan, staggered
+  // Side street z = +16
+  hazards.push(new MovingCar("x",  15,  16.8, -30, 30, -1, 0xff44aa, add)); // pink
+  hazards.push(new MovingCar("x", -10,  15.2, -30, 30,  1, 0x88ff00, add)); // lime
+  // Side street x = -16
+  hazards.push(new MovingCar("z",  20, -16.8, -30, 30, -1, 0xffcc00, add)); // gold
+  // Side street x = +16
+  hazards.push(new MovingCar("z", -20,  16.8, -30, 30,  1, 0x00ffcc, add)); // teal
+
+  // ── Elevated highway overpass ────────────────────────────────────────────────
+  // A raised road deck runs diagonally across the map (NW-SE), supported by pillars.
+  // Players can walk on top and cars drive across it.
+  const OVER_Y = 5.5; // road surface height
+  const OVER_W = 4.0; // road width
+  const OVER_T = 0.5; // deck thickness
+
+  // Deck segments (straight run from x=-28 to x=28 at z=8)
+  {
+    const deck = add(new THREE.Mesh(
+      new THREE.BoxGeometry(56, OVER_T, OVER_W),
+      new THREE.MeshLambertMaterial({ color: 0x2a2a3a }),
+    ));
+    deck.position.set(0, OVER_Y, 8);
+    deck.castShadow = true;
+    deck.receiveShadow = true;
+    colliders.push(new THREE.Box3(
+      new THREE.Vector3(-28, OVER_Y, 8 - OVER_W / 2),
+      new THREE.Vector3( 28, OVER_Y + OVER_T, 8 + OVER_W / 2),
+    ));
+    walls.push(new THREE.Box3(
+      new THREE.Vector3(-28, 0, 8 - OVER_W / 2 - 0.3),
+      new THREE.Vector3( 28, OVER_Y, 8 + OVER_W / 2 + 0.3),
+    ));
+  }
+  // Guardrails (visual only)
+  for (const side of [-1, 1]) {
+    const rail = add(new THREE.Mesh(
+      new THREE.BoxGeometry(56, 0.6, 0.15),
+      new THREE.MeshLambertMaterial({ color: 0x555566 }),
+    ));
+    rail.position.set(0, OVER_Y + OVER_T / 2 + 0.3, 8 + side * (OVER_W / 2));
+  }
+  // Support pillars every 8 units
+  for (let px = -24; px <= 24; px += 8) {
+    const pillar = add(new THREE.Mesh(
+      new THREE.BoxGeometry(0.8, OVER_Y, 0.8),
+      new THREE.MeshLambertMaterial({ color: 0x333344 }),
+    ));
+    pillar.position.set(px, OVER_Y / 2, 8);
+    walls.push(new THREE.Box3().setFromObject(pillar));
+  }
+  // On-ramp from ground (z=16 side) — sloped platform stub
+  {
+    const rampW = 3;
+    for (let i = 0; i < 5; i++) {
+      const rY = (i / 4) * OVER_Y + OVER_T / 2;
+      const rampSeg = add(new THREE.Mesh(
+        new THREE.BoxGeometry(rampW, 0.3, 1.4),
+        new THREE.MeshLambertMaterial({ color: 0x2a2a3a }),
+      ));
+      const rZ = 8 + OVER_W / 2 + 1 + i * 1.4;
+      rampSeg.position.set(-26 + i * 0.5, rY, rZ);
+      colliders.push(new THREE.Box3(
+        new THREE.Vector3(-26 + i * 0.5 - rampW / 2, rY - 0.15, rZ - 0.7),
+        new THREE.Vector3(-26 + i * 0.5 + rampW / 2, rY + 0.15, rZ + 0.7),
+      ));
+    }
+  }
+  // Car on the overpass (yOffset lifts it to road surface)
+  hazards.push(new MovingCar("x", -28, 8, -28, 28, 1, 0xff2288, add, OVER_Y + OVER_T / 2));
 
   // ── Teleporters (3 pairs, orange) ───────────────────────────────────────────
   // Pad y must equal the building height so the trigger box starts at roof surface

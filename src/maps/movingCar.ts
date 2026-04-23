@@ -2,12 +2,15 @@ import * as THREE from "three";
 import { Controllable } from "../types";
 
 const CAR_SPEED     = 9;    // units/s along road
-const KNOCK_FORCE   = 18;   // units/s applied in travel direction on hit
-const KNOCK_UP      = 6;    // units/s upward on hit
+const KNOCK_FORCE   = 26;   // units/s applied in travel direction on hit
+const KNOCK_UP      = 9;    // units/s upward on hit
 const HIT_HALF_LEN  = 1.2;  // half-length of car along travel axis
 const HIT_HALF_W    = 0.65; // half-width of car perpendicular to travel
 const HIT_HEIGHT    = 1.8;  // max entity y to be struck
 const HIT_COOLDOWN  = 2.0;  // seconds before same car can hit same entity again
+// Only entities in FRONT of the car (in the driving direction) get flung.
+// "along" = dot(entityOffset, driveDir), so along > 0 means ahead of the car.
+const HIT_FRONT_REACH = HIT_HALF_LEN + 0.8; // extra forward reach
 
 export class MovingCar {
   private _group:   THREE.Group;
@@ -16,6 +19,7 @@ export class MovingCar {
   private _max:     number;
   private _val:     number;   // current coord along travel axis
   private _fixed:   number;   // fixed coord on the other axis
+  private _yOffset: number;   // vertical offset (e.g. for elevated roads)
   private _dir:     1 | -1;
   private _cooldowns = new Map<Controllable, number>();
 
@@ -27,14 +31,16 @@ export class MovingCar {
     max:      number,
     startDir: 1 | -1,
     color:    number,
-    add:      (o: THREE.Object3D) => void
+    add:      (o: THREE.Object3D) => void,
+    yOffset = 0
   ) {
-    this._axis  = axis;
-    this._val   = startVal;
-    this._fixed = fixedVal;
-    this._min   = min;
-    this._max   = max;
-    this._dir   = startDir;
+    this._axis    = axis;
+    this._val     = startVal;
+    this._fixed   = fixedVal;
+    this._min     = min;
+    this._max     = max;
+    this._dir     = startDir;
+    this._yOffset = yOffset;
 
     this._group = new THREE.Group();
 
@@ -66,10 +72,10 @@ export class MovingCar {
 
   private _applyTransform() {
     if (this._axis === "x") {
-      this._group.position.set(this._val, 0, this._fixed);
+      this._group.position.set(this._val, this._yOffset, this._fixed);
       this._group.rotation.y = this._dir > 0 ? 0 : Math.PI;
     } else {
-      this._group.position.set(this._fixed, 0, this._val);
+      this._group.position.set(this._fixed, this._yOffset, this._val);
       this._group.rotation.y = this._dir > 0 ? Math.PI / 2 : -Math.PI / 2;
     }
   }
@@ -92,7 +98,7 @@ export class MovingCar {
     const cp = this._group.position;
     for (const e of entities) {
       if (e.isEliminated || this._cooldowns.has(e)) continue;
-      if (e.position.y > HIT_HEIGHT) continue;
+      if (Math.abs(e.position.y - this._yOffset) > HIT_HEIGHT) continue;
 
       let along: number, perp: number;
       if (this._axis === "x") {
@@ -103,8 +109,8 @@ export class MovingCar {
         perp  = Math.abs(e.position.x - cp.x);
       }
 
-      // Entity is within the car's bounding box (slightly extended forward for collision feel)
-      if (along > -HIT_HALF_LEN && along < HIT_HALF_LEN + 0.4 && perp < HIT_HALF_W) {
+      // Only fling entities that are in front of the car (along the driving direction)
+      if (along > 0 && along < HIT_FRONT_REACH && perp < HIT_HALF_W) {
         if (this._axis === "x") e.velocity.x = this._dir * KNOCK_FORCE;
         else                    e.velocity.z = this._dir * KNOCK_FORCE;
         e.velocity.y = Math.max(e.velocity.y, KNOCK_UP);

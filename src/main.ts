@@ -1198,6 +1198,17 @@ function gameLoop() {
     zombiePickerEl.style.display = "none";
     if (hauntedItLight)   { scene.remove(hauntedItLight);   hauntedItLight   = null; }
     if (hauntedFlashlight){ scene.remove(hauntedFlashlight); hauntedFlashlight = null; }
+    // Reset entity opacity and fog when leaving haunted mode
+    for (const e of localEntities) {
+      const meshObj = e as unknown as { mesh?: THREE.Object3D };
+      if (!meshObj.mesh) continue;
+      meshObj.mesh.traverse(child => {
+        if (child instanceof THREE.Mesh) {
+          (child.material as THREE.MeshLambertMaterial).transparent = false;
+          (child.material as THREE.MeshLambertMaterial).opacity = 1.0;
+        }
+      });
+    }
     weapon.setWeapon("sword");
     weapon.resetAmmo();
 
@@ -1363,8 +1374,28 @@ function gameLoop() {
   // Show weapon viewmodel when weapons are active and player isn't eliminated
   setViewModelWeapon(weaponsActive && !player.isEliminated ? weapon.type : null);
 
-  // ── Haunted mode: ghost IT glow + player flashlight ───────────────────────
+  // ── Haunted mode: transparency, fog, ghost glow + flashlight ─────────────
   if (isHaunted) {
+    // Dynamic fog: ghost sees farther, survivors get very short range
+    const localIsGhost = (player as unknown as Controllable).isIt;
+    if (scene.fog instanceof THREE.FogExp2) {
+      scene.fog.density = localIsGhost ? 0.038 : 0.11;
+    }
+
+    // Ghost entities (IT) are 50% transparent so survivors can barely make them out
+    for (const e of allEntities) {
+      const meshObj = e as unknown as { mesh?: THREE.Object3D };
+      if (!meshObj.mesh) continue;
+      const opacity = (e.isIt && !e.isEliminated) ? 0.5 : 1.0;
+      meshObj.mesh.traverse(child => {
+        if (child instanceof THREE.Mesh) {
+          const mat = child.material as THREE.MeshLambertMaterial;
+          mat.transparent = opacity < 1;
+          mat.opacity = opacity;
+        }
+      });
+    }
+
     // IT red pulsing glow (visible to everyone through the fog)
     const itEntity = allEntities.find(e => e.isIt && !e.isEliminated);
     if (itEntity) {
