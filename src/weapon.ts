@@ -17,6 +17,8 @@ export const weaponCallbacks = {
   onSwordHit:      (_target: Controllable): number => 0,
   /** Called when a zombie bite lands on an entity (infection mode). */
   onBiteHit:       (_target: Controllable, _shooter?: Controllable): void => {},
+  /** Returns true if the target is currently invincible and should ignore all hits. */
+  isInvincible:    (_target: Controllable): boolean => false,
 };
 
 /** Reset all weapon callbacks to their no-op defaults. */
@@ -27,6 +29,7 @@ export function resetWeaponCallbacks() {
   weaponCallbacks.onSplashHit     = () => 0;
   weaponCallbacks.onSwordHit      = () => 0;
   weaponCallbacks.onBiteHit       = () => {};
+  weaponCallbacks.isInvincible    = () => false;
 }
 
 // ── Per-weapon config ─────────────────────────────────────────────────────────
@@ -292,6 +295,7 @@ class Projectile {
   ) {
     for (const e of entities) {
       if ((e as unknown) === (shooter as unknown) || e.isEliminated) continue;
+      if (weaponCallbacks.isInvincible(e)) continue;
       const dist = center.distanceTo(e.position);
       if (dist > this._def.splashRadius) continue;
       const falloff = 1 - dist / this._def.splashRadius;
@@ -317,6 +321,7 @@ class Projectile {
     center: THREE.Vector3,
     freezeMap: Map<Controllable, number>,
   ) {
+    if (weaponCallbacks.isInvincible(e)) return;
     // Apply knockback first (works even if hitForce is 0)
     const push = new THREE.Vector3(
       e.position.x - center.x, 0, e.position.z - center.z,
@@ -415,6 +420,7 @@ class SwordSwing {
     // Hit entities in arc
     for (const e of entities) {
       if ((e as unknown) === (shooter as unknown) || e.isEliminated) continue;
+      if (weaponCallbacks.isInvincible(e)) continue;
       const toE = new THREE.Vector3(
         e.position.x - shooter.position.x,
         0,

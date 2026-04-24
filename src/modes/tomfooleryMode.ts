@@ -10,7 +10,7 @@ const KNOCKBACK_TIME = 0.55;
 export const TMF_MAX_HP    = 100;
 export const TMF_MAX_LIVES = 3;
 const BUMP_DAMAGE  = 22;
-const RESPAWN_IMMUNITY = 3.5; // seconds of tag immunity after respawn
+export const RESPAWN_IMMUNITY = 3.5; // seconds of tag immunity after respawn
 
 // Respawn spots spread across all platform rings (y=2 = 1m above platform surface).
 // Drawn from all 4 rings + the sky tier so players scatter around the full map.

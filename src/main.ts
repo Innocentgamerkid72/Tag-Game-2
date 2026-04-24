@@ -10,7 +10,7 @@ import type { WeaponType } from "./weapon";
 import { NetworkManager } from "./network";
 import { RemotePlayer } from "./remotePlayer";
 import type { NetMsg } from "./network";
-import { TMF_MAX_HP, TMF_MAX_LIVES } from "./modes/tomfooleryMode";
+import { TMF_MAX_HP, TMF_MAX_LIVES, RESPAWN_IMMUNITY } from "./modes/tomfooleryMode";
 import { SABOTAGE_RANGE, SABOTAGE_TIME } from "./modes/hunterMode";
 import { INF_HEALTHY_HP, installInfectionCallbacks, infectionHits, HITS_TO_INFECT } from "./modes/infectionMode";
 import { AcidPuddle } from "./maps/acidPuddle";
@@ -1216,6 +1216,7 @@ function gameLoop() {
     if (roundManager.mode.name === "Tomfoolery") {
       createTmfBars(localEntities);
       resetWeaponCallbacks();
+      weaponCallbacks.isInvincible = (e) => e.tagImmunity >= RESPAWN_IMMUNITY;
     } else if (roundManager.mode.name === "Infection") {
       createInfBars(localEntities);
       installInfectionCallbacks();
