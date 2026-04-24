@@ -20,36 +20,36 @@ const SPAWN_OFFSETS: THREE.Vector3[] = [
   new THREE.Vector3(-8, 2,  8),
   new THREE.Vector3( 8, 2, -8),
   new THREE.Vector3(-8, 2, -8),
-  // Ring 1 cardinal (±26)
-  new THREE.Vector3( 26, 2,  0),
-  new THREE.Vector3(-26, 2,  0),
-  new THREE.Vector3(  0, 2, 26),
-  new THREE.Vector3(  0, 2,-26),
-  // Ring 1 diagonal (±23)
-  new THREE.Vector3( 23, 2,  23),
-  new THREE.Vector3(-23, 2,  23),
-  new THREE.Vector3( 23, 2, -23),
-  new THREE.Vector3(-23, 2, -23),
-  // Ring 2 cardinal (±44)
-  new THREE.Vector3( 44, 2,  0),
-  new THREE.Vector3(-44, 2,  0),
-  new THREE.Vector3(  0, 2, 44),
-  new THREE.Vector3(  0, 2,-44),
-  // Ring 2 diagonal (±37)
-  new THREE.Vector3( 37, 2,  37),
-  new THREE.Vector3(-37, 2,  37),
-  new THREE.Vector3( 37, 2, -37),
-  new THREE.Vector3(-37, 2, -37),
-  // Ring 3 cardinal (±62)
-  new THREE.Vector3( 62, 2,  0),
-  new THREE.Vector3(-62, 2,  0),
-  new THREE.Vector3(  0, 2, 62),
-  new THREE.Vector3(  0, 2,-62),
-  // Ring 4 cardinal (±80)
-  new THREE.Vector3( 80, 2,  0),
-  new THREE.Vector3(-80, 2,  0),
-  new THREE.Vector3(  0, 2, 80),
-  new THREE.Vector3(  0, 2,-80),
+  // Ring 1 cardinal (±34)
+  new THREE.Vector3( 34, 2,  0),
+  new THREE.Vector3(-34, 2,  0),
+  new THREE.Vector3(  0, 2, 34),
+  new THREE.Vector3(  0, 2,-34),
+  // Ring 1 diagonal (±30)
+  new THREE.Vector3( 30, 2,  30),
+  new THREE.Vector3(-30, 2,  30),
+  new THREE.Vector3( 30, 2, -30),
+  new THREE.Vector3(-30, 2, -30),
+  // Ring 2 cardinal (±57)
+  new THREE.Vector3( 57, 2,  0),
+  new THREE.Vector3(-57, 2,  0),
+  new THREE.Vector3(  0, 2, 57),
+  new THREE.Vector3(  0, 2,-57),
+  // Ring 2 diagonal (±48)
+  new THREE.Vector3( 48, 2,  48),
+  new THREE.Vector3(-48, 2,  48),
+  new THREE.Vector3( 48, 2, -48),
+  new THREE.Vector3(-48, 2, -48),
+  // Ring 3 cardinal (±81)
+  new THREE.Vector3( 81, 2,  0),
+  new THREE.Vector3(-81, 2,  0),
+  new THREE.Vector3(  0, 2, 81),
+  new THREE.Vector3(  0, 2,-81),
+  // Ring 4 cardinal (±104)
+  new THREE.Vector3( 104, 2,  0),
+  new THREE.Vector3(-104, 2,  0),
+  new THREE.Vector3(   0, 2, 104),
+  new THREE.Vector3(   0, 2,-104),
   // Sky tier top (y=12)
   new THREE.Vector3(  0, 13,  0),
 ];
