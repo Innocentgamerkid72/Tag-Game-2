@@ -88,10 +88,11 @@ export class TomfooleryMode implements GameMode {
           // Respawn at a random platform spread across the map
           const sp = SPAWN_OFFSETS[Math.floor(Math.random() * SPAWN_OFFSETS.length)];
           e.setEliminated(false);
+          e.setFrozen(false);
           e.position.set(sp.x, sp.y, sp.z);
           e.velocity.set(0, 0, 0);
-          e.hp         = TMF_MAX_HP;
-          e.tagImmunity = RESPAWN_IMMUNITY;
+          e.hp             = TMF_MAX_HP;
+          e.tagImmunity    = RESPAWN_IMMUNITY;
           e.knockbackTimer = 0;
         }
       }
