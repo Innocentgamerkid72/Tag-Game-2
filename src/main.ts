@@ -1379,7 +1379,7 @@ function gameLoop() {
     // Dynamic fog: ghost sees farther, survivors get very short range
     const localIsGhost = (player as unknown as Controllable).isIt;
     if (scene.fog instanceof THREE.FogExp2) {
-      scene.fog.density = localIsGhost ? 0.038 : 0.11;
+      scene.fog.density = localIsGhost ? 0.055 : 0.20;
     }
 
     // Ghost entities (IT) are 50% transparent so survivors can barely make them out

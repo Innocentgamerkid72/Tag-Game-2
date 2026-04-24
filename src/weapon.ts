@@ -7,6 +7,8 @@ import { Controllable } from "./types";
 export const weaponCallbacks = {
   /** Multiplier applied to freeze duration for a given target (default 1). */
   freezeDurMult:   (_target: Controllable): number => 1,
+  /** Multiplier applied to knockback force for a given weapon type (default 1). */
+  knockbackMult:   (_wType: WeaponType): number => 1,
   /** Extra HP damage dealt on a direct projectile hit (default 0). */
   onProjectileHit: (_target: Controllable, _wType: WeaponType): number => 0,
   /** Extra HP damage dealt by a splash explosion (default 0). */
@@ -20,6 +22,7 @@ export const weaponCallbacks = {
 /** Reset all weapon callbacks to their no-op defaults. */
 export function resetWeaponCallbacks() {
   weaponCallbacks.freezeDurMult   = () => 1;
+  weaponCallbacks.knockbackMult   = () => 1;
   weaponCallbacks.onProjectileHit = () => 0;
   weaponCallbacks.onSplashHit     = () => 0;
   weaponCallbacks.onSwordHit      = () => 0;
@@ -321,9 +324,10 @@ class Projectile {
     const len = push.length();
     if (len > 0) push.divideScalar(len);
     if (this._def.hitForce > 0) {
-      e.velocity.x    += push.x * this._def.hitForce;
-      e.velocity.z    += push.z * this._def.hitForce;
-      e.velocity.y     = Math.max(e.velocity.y, this._def.hitForceY);
+      const km = weaponCallbacks.knockbackMult(this._wType);
+      e.velocity.x    += push.x * this._def.hitForce * km;
+      e.velocity.z    += push.z * this._def.hitForce * km;
+      e.velocity.y     = Math.max(e.velocity.y, this._def.hitForceY * km);
       e.knockbackTimer = 0.55;
       e.tagImmunity    = Math.max(e.tagImmunity, 0.55);
     }
@@ -423,9 +427,10 @@ class SwordSwing {
       );
       if (angle > SWORD_ARC) continue;
 
-      e.velocity.x    += (toE.x / dist || 0) * SWORD_FORCE;
-      e.velocity.z    += (toE.z / dist || 0) * SWORD_FORCE;
-      e.velocity.y     = Math.max(e.velocity.y, SWORD_FORCE_Y);
+      const skm = weaponCallbacks.knockbackMult("sword");
+      e.velocity.x    += (toE.x / dist || 0) * SWORD_FORCE * skm;
+      e.velocity.z    += (toE.z / dist || 0) * SWORD_FORCE * skm;
+      e.velocity.y     = Math.max(e.velocity.y, SWORD_FORCE_Y * skm);
       e.knockbackTimer = 0.7;
       e.tagImmunity    = Math.max(e.tagImmunity, 0.7);
       const sDmg = weaponCallbacks.onSwordHit(e);

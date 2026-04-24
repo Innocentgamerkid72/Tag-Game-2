@@ -154,6 +154,77 @@ export function buildHauntedMap(scene: THREE.Scene): MapResult {
   ];
   for (const [x, z, w, h, r] of stones) tombstone(x, z, w, h, r);
 
+  // ── Inner iron fence corridors (funnel approaches to mausoleum) ──────────
+  // N/S approach flanks
+  wall(-14, -12, 0.3, 2.0, 10, 0x1e1e1e);
+  wall( 14, -12, 0.3, 2.0, 10, 0x1e1e1e);
+  wall(-14,  12, 0.3, 2.0, 10, 0x1e1e1e);
+  wall( 14,  12, 0.3, 2.0, 10, 0x1e1e1e);
+  // Short cross-stubs E/W of mausoleum doorways
+  wall(-10, -2, 4, 2.0, 0.3, 0x1e1e1e);
+  wall(-10,  2, 4, 2.0, 0.3, 0x1e1e1e);
+  wall( 10, -2, 4, 2.0, 0.3, 0x1e1e1e);
+  wall( 10,  2, 4, 2.0, 0.3, 0x1e1e1e);
+
+  // ── Stone crypt fragments (L-walls in 4 mid-zones) ───────────────────────
+  wall(-18, -20, 8, 3.5, 0.5, 0x2c2824);
+  wall(-22, -17, 0.5, 3.5, 6,  0x2c2824);
+  wall( 18, -20, 8, 3.5, 0.5, 0x2c2824);
+  wall( 22, -17, 0.5, 3.5, 6,  0x2c2824);
+  wall(-18,  20, 8, 3.5, 0.5, 0x2c2824);
+  wall(-22,  17, 0.5, 3.5, 6,  0x2c2824);
+  wall( 18,  20, 8, 3.5, 0.5, 0x2c2824);
+  wall( 22,  17, 0.5, 3.5, 6,  0x2c2824);
+
+  // ── Hedge dividers (E/W blocking walls with central gap) ─────────────────
+  wall( 24, -7, 0.5, 2.2,  8, 0x162010);
+  wall( 24,  7, 0.5, 2.2,  8, 0x162010);
+  wall(-24, -7, 0.5, 2.2,  8, 0x162010);
+  wall(-24,  7, 0.5, 2.2,  8, 0x162010);
+  // N/S hedge rows with gap at centre (two halves each)
+  wall( -9, -22, 8, 2.2, 0.5, 0x162010);
+  wall(  9, -22, 8, 2.2, 0.5, 0x162010);
+  wall( -9,  22, 8, 2.2, 0.5, 0x162010);
+  wall(  9,  22, 8, 2.2, 0.5, 0x162010);
+
+  // ── Mid-area tombstone rows (low barriers in open ground) ─────────────────
+  for (const [tx, tz] of [
+    [-4,-15],[0,-15],[4,-15], [-4,15],[0,15],[4,15],
+    [-15,-4],[-15,0],[-15,4], [15,-4],[15,0],[15,4],
+    [-8,-8],[8,8],[-8,8],[8,-8],
+  ] as [number,number][]) tombstone(tx, tz, 0.9, 1.4);
+
+  // ── Additional stone crypt walls (inner maze near mausoleum) ─────────────────
+  // NW quadrant passage walls
+  wall( -6, -8,  6, 3.0, 0.4, 0x2c2824);
+  wall(-10, -6,  0.4, 3.0,  8, 0x2c2824);
+  // NE quadrant passage walls
+  wall(  6, -8,  6, 3.0, 0.4, 0x2c2824);
+  wall( 10, -6,  0.4, 3.0,  8, 0x2c2824);
+  // SW quadrant passage walls
+  wall( -6,  8,  6, 3.0, 0.4, 0x2c2824);
+  wall(-10,  6,  0.4, 3.0,  8, 0x2c2824);
+  // SE quadrant passage walls
+  wall(  6,  8,  6, 3.0, 0.4, 0x2c2824);
+  wall( 10,  6,  0.4, 3.0,  8, 0x2c2824);
+
+  // ── Outer broken ring walls ───────────────────────────────────────────────────
+  wall(-28,   0, 0.4, 3.0, 12, 0x2a2420);
+  wall( 28,   0, 0.4, 3.0, 12, 0x2a2420);
+  wall(  0, -28, 12,  3.0, 0.4, 0x2a2420);
+  wall(  0,  28, 12,  3.0, 0.4, 0x2a2420);
+  wall(-28, -10, 0.4, 3.0,  8, 0x2a2420);
+  wall(-28,  10, 0.4, 3.0,  8, 0x2a2420);
+  wall( 28, -10, 0.4, 3.0,  8, 0x2a2420);
+  wall( 28,  10, 0.4, 3.0,  8, 0x2a2420);
+
+  // ── Extra low tomb slabs (mid-map barriers) ────────────────────────────────────
+  for (const [tx, tz, tr] of [
+    [ -5,-20, 0.10], [  5,-20,-0.10], [ -5, 20, 0.20], [  5, 20,-0.20],
+    [-20, -5, 0.00], [-20,  5, 0.15], [ 20, -5, 0.00], [ 20,  5,-0.10],
+    [ -2,-10, 0.05], [  2, 10,-0.05], [-10,  2, 0.10], [ 10, -2,-0.10],
+  ] as [number,number,number][]) tombstone(tx, tz, 1.1, 0.7, tr);
+
   // ── Dead trees ────────────────────────────────────────────────────────────
   deadTree(-12, -10, 7);
   deadTree( 12,  10, 8);
@@ -171,6 +242,8 @@ export function buildHauntedMap(scene: THREE.Scene): MapResult {
   lantern(  2, -16);
   lantern(-28,  28, 1.8);
   lantern( 28, -28, 1.8);
+  lantern(-20, -20, 1.6);
+  lantern( 20,  20, 1.6);
 
   // ── Teleporters (dim cryptic pads) ────────────────────────────────────────
   function addTp(x: number, z: number, dx: number, dz: number): Teleporter {

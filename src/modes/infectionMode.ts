@@ -64,6 +64,11 @@ export function installInfectionCallbacks() {
   weaponCallbacks.freezeDurMult = (target: Controllable) =>
     target.isIt ? ZOMBIE_FREEZE_MULT : 1;
 
+  // Blaster and sword have greatly reduced knockback in infection so zombies
+  // don't get launched out of range when hit by healthy players.
+  weaponCallbacks.knockbackMult = (wType: WeaponType) =>
+    (wType === "blaster" || wType === "sword") ? 0.25 : 1;
+
   weaponCallbacks.onProjectileHit = (target: Controllable, wType: WeaponType) => {
     if (!target.isIt) return 0;
     if (wType === "blaster") return BLASTER_DMG_VS_ZOMBIE;

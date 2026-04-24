@@ -134,7 +134,7 @@ export function buildTomfooleryMap(scene: THREE.Scene): MapResult {
   const fallingPlatforms: FallingPlatform[] = [];
   const hazards: Array<{ update(dt: number, entities: Controllable[]): void }> = [];
 
-  const BOUNDARY = 100;
+  const BOUNDARY = 135;
 
   const _objs: THREE.Object3D[] = [];
   function add<T extends THREE.Object3D>(o: T): T { scene.add(o); _objs.push(o); return o; }
@@ -229,143 +229,142 @@ export function buildTomfooleryMap(scene: THREE.Scene): MapResult {
     addBarrel(bx, 1, bz);
   }
 
-  // ── Ring 1: cardinal (±26) ────────────────────────────────────────────────────
-  for (const [rx, rz] of [[-26,0],[26,0],[0,-26],[0,26]] as [number,number][]) {
+  // ── Ring 1: cardinal (±34) ────────────────────────────────────────────────────
+  for (const [rx, rz] of [[-34,0],[34,0],[0,-34],[0,34]] as [number,number][]) {
     addPlatform(rx, 0, rz, 7, 1, 7, 0x14202e);
     addBarrel(rx, 1, rz);
   }
-  // Ring 1: diagonal (±23, ±23)
-  for (const [rx, rz] of [[23,23],[-23,23],[23,-23],[-23,-23]] as [number,number][]) {
+  // Ring 1: diagonal (±30, ±30)
+  for (const [rx, rz] of [[30,30],[-30,30],[30,-30],[-30,-30]] as [number,number][]) {
     addPlatform(rx, 0, rz, 6, 1, 6, 0x121c28);
   }
 
   // Teleporters Ring 1 cardinal pairs
-  const [tp1, tp2] = [addTeleporter(-26,1,0, 26,1.1,0), addTeleporter(26,1,0, -26,1.1,0)];
+  const [tp1, tp2] = [addTeleporter(-34,1,0, 34,1.1,0), addTeleporter(34,1,0, -34,1.1,0)];
   tp1.link = tp2; tp2.link = tp1;
-  const [tp3, tp4] = [addTeleporter(0,1,-26, 0,1.1,26), addTeleporter(0,1,26, 0,1.1,-26)];
+  const [tp3, tp4] = [addTeleporter(0,1,-34, 0,1.1,34), addTeleporter(0,1,34, 0,1.1,-34)];
   tp3.link = tp4; tp4.link = tp3;
 
-  // ── Ring 2: cardinal (±44) ────────────────────────────────────────────────────
-  for (const [rx, rz] of [[-44,0],[44,0],[0,-44],[0,44]] as [number,number][]) {
+  // ── Ring 2: cardinal (±57) ────────────────────────────────────────────────────
+  for (const [rx, rz] of [[-57,0],[57,0],[0,-57],[0,57]] as [number,number][]) {
     addPlatform(rx, 0, rz, 7, 1, 7, 0x0e1720);
     addBarrel(rx, 1, rz);
   }
-  // Ring 2: diagonal (±37, ±37)
-  for (const [rx, rz] of [[37,37],[-37,37],[37,-37],[-37,-37]] as [number,number][]) {
+  // Ring 2: diagonal (±48, ±48)
+  for (const [rx, rz] of [[48,48],[-48,48],[48,-48],[-48,-48]] as [number,number][]) {
     addPlatform(rx, 0, rz, 6, 1, 6, 0x10181f);
   }
   // Ring 2: mid-cardinal side pads
-  for (const [rx, rz] of [[-44,16],[-44,-16],[44,16],[44,-16],[16,-44],[-16,-44],[16,44],[-16,44]] as [number,number][]) {
+  for (const [rx, rz] of [[-57,21],[-57,-21],[57,21],[57,-21],[21,-57],[-21,-57],[21,57],[-21,57]] as [number,number][]) {
     addPlatform(rx, 0, rz, 4, 1, 4, 0x0f1820);
   }
 
   // Teleporters Ring 2 cardinal pairs
-  const [tp5, tp6] = [addTeleporter(-44,1,0, 44,1.1,0), addTeleporter(44,1,0, -44,1.1,0)];
+  const [tp5, tp6] = [addTeleporter(-57,1,0, 57,1.1,0), addTeleporter(57,1,0, -57,1.1,0)];
   tp5.link = tp6; tp6.link = tp5;
-  const [tp7, tp8] = [addTeleporter(0,1,-44, 0,1.1,44), addTeleporter(0,1,44, 0,1.1,-44)];
+  const [tp7, tp8] = [addTeleporter(0,1,-57, 0,1.1,57), addTeleporter(0,1,57, 0,1.1,-57)];
   tp7.link = tp8; tp8.link = tp7;
 
-  // ── Ring 3: cardinal (±62) ────────────────────────────────────────────────────
-  for (const [rx, rz] of [[-62,0],[62,0],[0,-62],[0,62]] as [number,number][]) {
+  // ── Ring 3: cardinal (±81) ────────────────────────────────────────────────────
+  for (const [rx, rz] of [[-81,0],[81,0],[0,-81],[0,81]] as [number,number][]) {
     addPlatform(rx, 0, rz, 8, 1, 8, 0x0b1219);
     addBarrel(rx, 1, rz);
   }
-  // Ring 3: diagonal (±52, ±52)
-  for (const [rx, rz] of [[52,52],[-52,52],[52,-52],[-52,-52]] as [number,number][]) {
+  // Ring 3: diagonal (±68, ±68)
+  for (const [rx, rz] of [[68,68],[-68,68],[68,-68],[-68,-68]] as [number,number][]) {
     addPlatform(rx, 0, rz, 6, 1, 6, 0x0d151e);
   }
   // Ring 3: mid-cardinal side pads
-  for (const [rx, rz] of [[-62,20],[-62,-20],[62,20],[62,-20],[20,-62],[-20,-62],[20,62],[-20,62]] as [number,number][]) {
+  for (const [rx, rz] of [[-81,26],[-81,-26],[81,26],[81,-26],[26,-81],[-26,-81],[26,81],[-26,81]] as [number,number][]) {
     addPlatform(rx, 0, rz, 5, 1, 5, 0x0c1318);
   }
 
   // Teleporters Ring 3 cardinal pairs
-  const [tp9, tp10] = [addTeleporter(-62,1,0, 62,1.1,0), addTeleporter(62,1,0, -62,1.1,0)];
+  const [tp9, tp10] = [addTeleporter(-81,1,0, 81,1.1,0), addTeleporter(81,1,0, -81,1.1,0)];
   tp9.link = tp10; tp10.link = tp9;
-  const [tp11, tp12] = [addTeleporter(0,1,-62, 0,1.1,62), addTeleporter(0,1,62, 0,1.1,-62)];
+  const [tp11, tp12] = [addTeleporter(0,1,-81, 0,1.1,81), addTeleporter(0,1,81, 0,1.1,-81)];
   tp11.link = tp12; tp12.link = tp11;
 
-  // ── Ring 4: cardinal (±80) ────────────────────────────────────────────────────
-  for (const [rx, rz] of [[-80,0],[80,0],[0,-80],[0,80]] as [number,number][]) {
+  // ── Ring 4: cardinal (±104) ───────────────────────────────────────────────────
+  for (const [rx, rz] of [[-104,0],[104,0],[0,-104],[0,104]] as [number,number][]) {
     addPlatform(rx, 0, rz, 9, 1, 9, 0x09101a);
     addBarrel(rx, 1, rz);
   }
-  // Ring 4: diagonal (±68, ±68)
-  for (const [rx, rz] of [[68,68],[-68,68],[68,-68],[-68,-68]] as [number,number][]) {
+  // Ring 4: diagonal (±88, ±88)
+  for (const [rx, rz] of [[88,88],[-88,88],[88,-88],[-88,-88]] as [number,number][]) {
     addPlatform(rx, 0, rz, 7, 1, 7, 0x0a1218);
   }
   // Ring 4: mid-cardinal side pads
-  for (const [rx, rz] of [[-80,24],[-80,-24],[80,24],[80,-24],[24,-80],[-24,-80],[24,80],[-24,80]] as [number,number][]) {
+  for (const [rx, rz] of [[-104,31],[-104,-31],[104,31],[104,-31],[31,-104],[-31,-104],[31,104],[-31,104]] as [number,number][]) {
     addPlatform(rx, 0, rz, 5, 1, 5, 0x09111a);
   }
   // Ring 4: extra corner pads to make outer ring feel connected
-  for (const [rx, rz] of [[80,28],[-80,28],[80,-28],[-80,-28],[28,80],[-28,80],[28,-80],[-28,-80]] as [number,number][]) {
+  for (const [rx, rz] of [[104,36],[-104,36],[104,-36],[-104,-36],[36,104],[-36,104],[36,-104],[-36,-104]] as [number,number][]) {
     addPlatform(rx, 0, rz, 4, 1, 4, 0x090f18);
   }
 
   // Teleporters Ring 4 — wrap back to center
-  const [tp13, tp14] = [addTeleporter(-80,1,0, 0,1.1,0), addTeleporter(80,1,0, 0,1.1,0)];
+  const [tp13, tp14] = [addTeleporter(-104,1,0, 0,1.1,0), addTeleporter(104,1,0, 0,1.1,0)];
   tp13.link = tp14; tp14.link = tp13;
-  const [tp15, tp16] = [addTeleporter(0,1,-80, 0,1.1,0), addTeleporter(0,1,80, 0,1.1,0)];
+  const [tp15, tp16] = [addTeleporter(0,1,-104, 0,1.1,0), addTeleporter(0,1,104, 0,1.1,0)];
   tp15.link = tp16; tp16.link = tp15;
 
   // ── Gap fill: between-arm pads at ≈22.5° intervals ───────────────────────────
   // Each ring has 4 cardinal + 4 diagonal arms. These pads fill the open quadrants
   // between them so players always have somewhere to jump.
 
-  // Within Ring 1 zone — between cardinal (±26,0) and diagonal (±23,±23) arms
+  // Within Ring 1 zone — between cardinal (±34,0) and diagonal (±30,±30) arms
   for (const [rx, rz] of [
-    [22,11],[-22,11],[22,-11],[-22,-11],
-    [11,22],[-11,22],[11,-22],[-11,-22],
+    [29,14],[-29,14],[29,-14],[-29,-14],
+    [14,29],[-14,29],[14,-29],[-14,-29],
   ] as [number,number][]) {
     addPlatform(rx, 0, rz, 4, 1, 4, 0x13202c);
   }
 
   // Between Ring 1 and Ring 2 — at off-axis angles
   for (const [rx, rz] of [
-    [34,17],[-34,17],[34,-17],[-34,-17],
-    [17,34],[-17,34],[17,-34],[-17,-34],
+    [44,22],[-44,22],[44,-22],[-44,-22],
+    [22,44],[-22,44],[22,-44],[-22,-44],
   ] as [number,number][]) {
     addPlatform(rx, 0, rz, 4, 1, 4, 0x0f1a22);
   }
 
-  // Within Ring 2 zone — between cardinal (±44,0) and diagonal (±37,±37)
-  // Fills gap between the side pads (±44,±16) and the diagonal pads
+  // Within Ring 2 zone — between cardinal (±57,0) and diagonal (±48,±48)
   for (const [rx, rz] of [
-    [40,22],[-40,22],[40,-22],[-40,-22],
-    [22,40],[-22,40],[22,-40],[-22,-40],
+    [52,29],[-52,29],[52,-29],[-52,-29],
+    [29,52],[-29,52],[29,-52],[-29,-52],
   ] as [number,number][]) {
     addPlatform(rx, 0, rz, 4, 1, 4, 0x0e1820);
   }
 
   // Between Ring 2 and Ring 3 — at off-axis angles
   for (const [rx, rz] of [
-    [52,26],[-52,26],[52,-26],[-52,-26],
-    [26,52],[-26,52],[26,-52],[-26,-52],
+    [68,34],[-68,34],[68,-34],[-68,-34],
+    [34,68],[-34,68],[34,-68],[-34,-68],
   ] as [number,number][]) {
     addPlatform(rx, 0, rz, 4, 1, 4, 0x0c151c);
   }
 
-  // Within Ring 3 zone — between cardinal (±62,0) and diagonal (±52,±52)
+  // Within Ring 3 zone — between cardinal (±81,0) and diagonal (±68,±68)
   for (const [rx, rz] of [
-    [56,30],[-56,30],[56,-30],[-56,-30],
-    [30,56],[-30,56],[30,-56],[-30,-56],
+    [73,39],[-73,39],[73,-39],[-73,-39],
+    [39,73],[-39,73],[39,-73],[-39,-73],
   ] as [number,number][]) {
     addPlatform(rx, 0, rz, 5, 1, 5, 0x0b131a);
   }
 
   // Between Ring 3 and Ring 4 — at off-axis angles
   for (const [rx, rz] of [
-    [70,36],[-70,36],[70,-36],[-70,-36],
-    [36,70],[-36,70],[36,-70],[-36,-70],
+    [91,47],[-91,47],[91,-47],[-91,-47],
+    [47,91],[-47,91],[47,-91],[-47,-91],
   ] as [number,number][]) {
     addPlatform(rx, 0, rz, 4, 1, 4, 0x09111a);
   }
 
-  // Within Ring 4 zone — between cardinal (±80,0) and diagonal (±68,±68)
+  // Within Ring 4 zone — between cardinal (±104,0) and diagonal (±88,±88)
   for (const [rx, rz] of [
-    [74,40],[-74,40],[74,-40],[-74,-40],
-    [40,74],[-40,74],[40,-74],[-40,-74],
+    [96,52],[-96,52],[96,-52],[-96,-52],
+    [52,96],[-52,96],[52,-96],[-52,-96],
   ] as [number,number][]) {
     addPlatform(rx, 0, rz, 4, 1, 4, 0x08101a);
   }
@@ -431,41 +430,41 @@ export function buildTomfooleryMap(scene: THREE.Scene): MapResult {
     4, 0.4, 4, 0x223322, 7, add, colliders,
   ));
   movingPlatforms.push(new MovingPlatform(
-    new THREE.Vector3(-44, 2, 0), new THREE.Vector3(-26, 2, 0),
+    new THREE.Vector3(-57, 2, 0), new THREE.Vector3(-34, 2, 0),
     4, 0.4, 4, 0x334422, 5, add, colliders,
   ));
   movingPlatforms.push(new MovingPlatform(
-    new THREE.Vector3(26, 2, 0), new THREE.Vector3(44, 2, 0),
+    new THREE.Vector3(34, 2, 0), new THREE.Vector3(57, 2, 0),
     4, 0.4, 4, 0x334422, 5, add, colliders,
   ));
   movingPlatforms.push(new MovingPlatform(
-    new THREE.Vector3(0, 2, -44), new THREE.Vector3(0, 2, -26),
+    new THREE.Vector3(0, 2, -57), new THREE.Vector3(0, 2, -34),
     4, 0.4, 4, 0x442233, 6, add, colliders,
   ));
   // Ring 3 ↔ Ring 4 bridges (cardinal)
   movingPlatforms.push(new MovingPlatform(
-    new THREE.Vector3(62, 2, 0), new THREE.Vector3(80, 2, 0),
+    new THREE.Vector3(81, 2, 0), new THREE.Vector3(104, 2, 0),
     4, 0.4, 4, 0x334433, 6, add, colliders,
   ));
   movingPlatforms.push(new MovingPlatform(
-    new THREE.Vector3(-80, 2, 0), new THREE.Vector3(-62, 2, 0),
+    new THREE.Vector3(-104, 2, 0), new THREE.Vector3(-81, 2, 0),
     4, 0.4, 4, 0x334433, 6, add, colliders,
   ));
   movingPlatforms.push(new MovingPlatform(
-    new THREE.Vector3(0, 2, 62), new THREE.Vector3(0, 2, 80),
+    new THREE.Vector3(0, 2, 81), new THREE.Vector3(0, 2, 104),
     4, 0.4, 4, 0x334433, 7, add, colliders,
   ));
   // Off-axis sweepers through gap-fill zones
   movingPlatforms.push(new MovingPlatform(
-    new THREE.Vector3(22, 2, 11), new THREE.Vector3(34, 2, 17),
+    new THREE.Vector3(29, 2, 14), new THREE.Vector3(44, 2, 22),
     4, 0.4, 4, 0x1e3322, 5, add, colliders,
   ));
   movingPlatforms.push(new MovingPlatform(
-    new THREE.Vector3(-11, 2, -22), new THREE.Vector3(-17, 2, -34),
+    new THREE.Vector3(-14, 2, -29), new THREE.Vector3(-22, 2, -44),
     4, 0.4, 4, 0x1e3322, 5, add, colliders,
   ));
   movingPlatforms.push(new MovingPlatform(
-    new THREE.Vector3(52, 2, 26), new THREE.Vector3(56, 2, 30),
+    new THREE.Vector3(68, 2, 34), new THREE.Vector3(73, 2, 39),
     4, 0.4, 4, 0x223344, 6, add, colliders,
   ));
   // New: diagonal diagonal sky cross (y=14)
@@ -484,39 +483,39 @@ export function buildTomfooleryMap(scene: THREE.Scene): MapResult {
   const gY   = 1;
 
   // Main → Ring 1 cardinal
-  for (const [fx, fz] of [[21,0],[-21,0],[0,21],[0,-21]] as [number,number][]) {
+  for (const [fx, fz] of [[27,0],[-27,0],[0,27],[0,-27]] as [number,number][]) {
     fallingPlatforms.push(new FallingPlatform(fx, gY, fz, fpS, fpH, fpS, fpC, add, colliders));
   }
   // Main corners → Ring 1 diagonal
-  for (const [fx, fz] of [[14,14],[-14,14],[14,-14],[-14,-14]] as [number,number][]) {
+  for (const [fx, fz] of [[18,18],[-18,18],[18,-18],[-18,-18]] as [number,number][]) {
     fallingPlatforms.push(new FallingPlatform(fx, gY, fz, fpS, fpH, fpS, fpC, add, colliders));
   }
   // Ring 1 diagonal stepping stones
-  for (const [fx, fz] of [[20,20],[-20,20],[20,-20],[-20,-20]] as [number,number][]) {
+  for (const [fx, fz] of [[26,26],[-26,26],[26,-26],[-26,-26]] as [number,number][]) {
     fallingPlatforms.push(new FallingPlatform(fx, gY, fz, fpS, fpH, fpS, fpC, add, colliders));
   }
   // Ring 1 → Ring 2 cardinal
-  for (const [fx, fz] of [[35,0],[-35,0],[0,35],[0,-35]] as [number,number][]) {
+  for (const [fx, fz] of [[46,0],[-46,0],[0,46],[0,-46]] as [number,number][]) {
     fallingPlatforms.push(new FallingPlatform(fx, gY, fz, fpS, fpH, fpS, fpC2, add, colliders));
   }
   // Ring 1 → Ring 2 diagonal
-  for (const [fx, fz] of [[30,30],[-30,30],[30,-30],[-30,-30]] as [number,number][]) {
+  for (const [fx, fz] of [[39,39],[-39,39],[39,-39],[-39,-39]] as [number,number][]) {
     fallingPlatforms.push(new FallingPlatform(fx, gY, fz, fpS, fpH, fpS, fpC2, add, colliders));
   }
   // Ring 2 → Ring 3 cardinal
-  for (const [fx, fz] of [[52,0],[-52,0],[0,52],[0,-52]] as [number,number][]) {
+  for (const [fx, fz] of [[68,0],[-68,0],[0,68],[0,-68]] as [number,number][]) {
     fallingPlatforms.push(new FallingPlatform(fx, gY, fz, fpS, fpH, fpS, fpC3, add, colliders));
   }
   // Ring 2 → Ring 3 diagonal
-  for (const [fx, fz] of [[44,44],[-44,44],[44,-44],[-44,-44]] as [number,number][]) {
+  for (const [fx, fz] of [[57,57],[-57,57],[57,-57],[-57,-57]] as [number,number][]) {
     fallingPlatforms.push(new FallingPlatform(fx, gY, fz, fpS, fpH, fpS, fpC3, add, colliders));
   }
   // Ring 3 → Ring 4 cardinal
-  for (const [fx, fz] of [[70,0],[-70,0],[0,70],[0,-70]] as [number,number][]) {
+  for (const [fx, fz] of [[91,0],[-91,0],[0,91],[0,-91]] as [number,number][]) {
     fallingPlatforms.push(new FallingPlatform(fx, gY, fz, fpS, fpH, fpS, fpC4, add, colliders));
   }
   // Ring 3 → Ring 4 diagonal
-  for (const [fx, fz] of [[60,60],[-60,60],[60,-60],[-60,-60]] as [number,number][]) {
+  for (const [fx, fz] of [[78,78],[-78,78],[78,-78],[-78,-78]] as [number,number][]) {
     fallingPlatforms.push(new FallingPlatform(fx, gY, fz, fpS, fpH, fpS, fpC4, add, colliders));
   }
 
@@ -568,7 +567,7 @@ export function buildTomfooleryMap(scene: THREE.Scene): MapResult {
     background:  0x000510,
     groundY:     -200,
     fallDeathY:  -10,
-    voidBoundary: 85,
+    voidBoundary: 110,
     dispose: () => _objs.forEach(o => scene.remove(o)),
   };
 }
