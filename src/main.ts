@@ -947,11 +947,12 @@ function gameLoop() {
     const st  = player.stamina / player.maxStamina;
     const pct = Math.round(st * 100);
     const full = st >= 1;
-    // Visible while sprinting or stamina is not full
-    sprintBarWrap.style.opacity = (player.isSprinting || !full) ? "1" : "0";
+    // Visible while sprinting, exhausted, or stamina is not full
+    sprintBarWrap.style.opacity = (player.isSprinting || player.isExhausted || !full) ? "1" : "0";
     sprintBarFill.style.width   = `${pct}%`;
-    sprintBarFill.style.background =
-      st > 0.5 ? "#44ff88" : st > 0.2 ? "#ffcc44" : "#ff4444";
+    sprintBarFill.style.background = player.isExhausted
+      ? "#ff2222"
+      : st > 0.5 ? "#44ff88" : st > 0.2 ? "#ffcc44" : "#ff4444";
   }
 
   if (weaponsActive) {

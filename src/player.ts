@@ -5,8 +5,10 @@ import { GRAVITY } from "./physics";
 
 const MOVE_SPEED         = 8;
 const SPRINT_SPEED       = 13.5;   // ~1.7× walk speed
+const EXHAUSTED_SPEED    = 5.0;    // below walk speed when stamina is depleted
 const SPRINT_STAMINA_MAX = 3.0;    // seconds of full sprint
 const STAMINA_REGEN_RATE = 0.45;   // seconds recharged per second (takes ~6.7s to refill)
+const EXHAUSTED_RECOVER  = 1.2;    // stamina must regen to this before exhaustion lifts
 const JUMP_FORCE         = 18;
 const PLAYER_HEIGHT      = 1.8;
 const PLAYER_RADIUS      = 0.4;
@@ -32,8 +34,9 @@ export class Player {
   /** Horizontal look angle (yaw) in radians. */
   yaw = 0;
 
-  private _stamina  = SPRINT_STAMINA_MAX;
+  private _stamina   = SPRINT_STAMINA_MAX;
   private _sprinting = false;
+  private _exhausted = false;
 
   private _pounceCooldown = 0;
   private _pounceTimer    = 0;
@@ -41,6 +44,7 @@ export class Player {
   get stamina()        { return this._stamina; }
   get maxStamina()     { return SPRINT_STAMINA_MAX; }
   get isSprinting()    { return this._sprinting; }
+  get isExhausted()    { return this._exhausted; }
   get isPouncing()     { return this._pounceTimer > 0; }
   get pounceCooldown() { return this._pounceCooldown; }
 
@@ -209,18 +213,22 @@ export class Player {
 
     // Sprint (Shift) — drains stamina while held, regens when released
     const wantSprint = input.isDown("ShiftLeft") && moveDir.lengthSq() > 0;
-    if (wantSprint && this._stamina > 0) {
+    if (wantSprint && this._stamina > 0 && !this._exhausted) {
       this._sprinting = true;
       this._stamina   = Math.max(0, this._stamina - dt);
+      if (this._stamina === 0) this._exhausted = true;
     } else {
       this._sprinting = false;
       this._stamina   = Math.min(SPRINT_STAMINA_MAX, this._stamina + STAMINA_REGEN_RATE * dt);
+      if (this._exhausted && this._stamina >= EXHAUSTED_RECOVER) this._exhausted = false;
     }
 
     if (this.knockbackTimer > 0) {
       this.knockbackTimer = Math.max(0, this.knockbackTimer - dt);
     } else {
-      const speed = this._sprinting ? SPRINT_SPEED : MOVE_SPEED;
+      const speed = this._sprinting  ? SPRINT_SPEED
+                  : this._exhausted  ? EXHAUSTED_SPEED
+                  : MOVE_SPEED;
       this.velocity.x = moveDir.x * speed * this.speedBoost;
       this.velocity.z = moveDir.z * speed * this.speedBoost;
     }
