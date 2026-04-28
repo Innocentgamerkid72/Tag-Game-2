@@ -33,7 +33,7 @@ export function resetWeaponCallbacks() {
 }
 
 // ── Per-weapon config ─────────────────────────────────────────────────────────
-export type WeaponType = "rocket" | "freeze" | "shotgun" | "sword" | "blaster" | "bite";
+export type WeaponType = "rocket" | "freeze" | "shotgun" | "sword" | "blaster" | "bite" | "dagger";
 
 interface WeaponDef {
   name:        string;
@@ -95,6 +95,14 @@ export const DEFS: Record<WeaponType, WeaponDef> = {
   sword: {
     name: "Sword", color: 0xaaddff, lightColor: 0xcceeff,
     size: 0, speed: 0, cooldown: 0.7, life: 0,
+    gravity: 0, hitForce: 0, hitForceY: 0,
+    splashRadius: 0, freezeSec: 0, pellets: 0, spread: 0,
+    maxAmmo: -1, reloadTime: 0, regenAmmo: false,
+  },
+  // dagger is handled separately — ghost backstab weapon
+  dagger: {
+    name: "Dagger", color: 0x441166, lightColor: 0x882299,
+    size: 0, speed: 0, cooldown: 0.55, life: 0,
     gravity: 0, hitForce: 0, hitForceY: 0,
     splashRadius: 0, freezeSec: 0, pellets: 0, spread: 0,
     maxAmmo: -1, reloadTime: 0, regenAmmo: false,
@@ -532,13 +540,96 @@ class BiteSwing {
   }
 }
 
+// ── Dagger swing (ghost haunted melee — one-hit kill from behind) ─────────────
+const DAGGER_RANGE     = 2.2;   // must be very close
+const DAGGER_ARC       = 1.1;   // ~63° forward cone ghost must face target
+const DAGGER_SWING_TIME = 0.2;
+
+class DaggerSwing {
+  private readonly _flash: THREE.Mesh;
+  private readonly _light: THREE.PointLight;
+  private _timer = DAGGER_SWING_TIME;
+  private _hitEntities = new Set<Controllable>();
+  done = false;
+
+  constructor(
+    private readonly _scene: THREE.Scene,
+    origin: THREE.Vector3,
+    private readonly _forward: THREE.Vector3,
+  ) {
+    // Dark shadowy slash effect
+    this._flash = new THREE.Mesh(
+      new THREE.BoxGeometry(0.12, 1.6, 0.06),
+      new THREE.MeshBasicMaterial({ color: 0xcc44ff, transparent: true, opacity: 0.85 }),
+    );
+    this._flash.position.copy(origin).addScaledVector(_forward, 1.2);
+    this._flash.position.y += 0.8;
+    this._flash.rotation.z = Math.PI / 5;
+    _scene.add(this._flash);
+
+    this._light = new THREE.PointLight(0x8800cc, 5, 5);
+    this._light.position.copy(this._flash.position);
+    _scene.add(this._light);
+  }
+
+  update(dt: number, ghost: Controllable, entities: Controllable[]) {
+    if (this.done) return;
+    this._timer -= dt;
+
+    const t = 1 - this._timer / DAGGER_SWING_TIME;
+    (this._flash.material as THREE.MeshBasicMaterial).opacity = Math.max(0, 0.85 - t * 3);
+    this._light.intensity = Math.max(0, 5 * (1 - t * 3));
+
+    const fwd = new THREE.Vector3(this._forward.x, 0, this._forward.z).normalize();
+
+    for (const e of entities) {
+      if ((e as unknown) === (ghost as unknown) || e.isEliminated || e.isIt) continue;
+      if (this._hitEntities.has(e)) continue;
+
+      const toE = new THREE.Vector3(
+        e.position.x - ghost.position.x, 0,
+        e.position.z - ghost.position.z,
+      );
+      const dist = toE.length();
+      if (dist > DAGGER_RANGE || dist < 0.01) continue;
+      if (toE.normalize().angleTo(fwd) > DAGGER_ARC) continue;
+
+      // ── Behind check ────────────────────────────────────────────────────────
+      // Get target's facing direction via yaw (duck-typed) or from velocity fallback
+      const eAny = e as unknown as { yaw?: number };
+      const targetYaw = typeof eAny.yaw === 'number'
+        ? eAny.yaw
+        : Math.atan2(-e.velocity.x, -e.velocity.z);
+      const targetFwd = new THREE.Vector3(-Math.sin(targetYaw), 0, -Math.cos(targetYaw));
+      // toGhost = direction from target toward ghost
+      const toGhost = new THREE.Vector3(
+        ghost.position.x - e.position.x, 0,
+        ghost.position.z - e.position.z,
+      ).normalize();
+      // If target is facing toward the ghost (dot > 0.15) they can "see" the attack
+      if (targetFwd.dot(toGhost) > 0.15) continue;
+
+      // ── Backstab kill ────────────────────────────────────────────────────────
+      this._hitEntities.add(e);
+      e.setEliminated(true);
+    }
+
+    if (this._timer <= 0) {
+      this._scene.remove(this._flash);
+      this._scene.remove(this._light);
+      this.done = true;
+    }
+  }
+}
+
 // ── Weapon system ─────────────────────────────────────────────────────────────
 export class WeaponSystem {
-  private _type:        WeaponType = "sword";
-  private _projectiles: Projectile[] = [];
-  private _swings:      SwordSwing[] = [];
-  private _biteSwings:  BiteSwing[] = [];
-  private _explosions:  Explosion[] = [];
+  private _type:          WeaponType = "sword";
+  private _projectiles:   Projectile[] = [];
+  private _swings:        SwordSwing[] = [];
+  private _biteSwings:    BiteSwing[] = [];
+  private _daggerSwings:  DaggerSwing[] = [];
+  private _explosions:    Explosion[] = [];
   private _cooldown     = 0;
   private _freezeMap:   Map<Controllable, number> = new Map();
 
@@ -635,6 +726,13 @@ export class WeaponSystem {
       return;
     }
 
+    // Dagger — unlimited, backstab melee
+    if (this._type === "dagger") {
+      this._daggerSwings.push(new DaggerSwing(scene, origin, direction));
+      this._cooldown = def.cooldown;
+      return;
+    }
+
     // Ammo check
     if (def.maxAmmo !== -1) {
       const current = this._ammo.get(this._type) ?? def.maxAmmo;
@@ -711,6 +809,9 @@ export class WeaponSystem {
 
     for (const b of this._biteSwings) b.update(dt, shooter, entities);
     this._biteSwings = this._biteSwings.filter(b => !b.done);
+
+    for (const d of this._daggerSwings) d.update(dt, shooter, entities);
+    this._daggerSwings = this._daggerSwings.filter(d => !d.done);
 
     for (const ex of this._explosions) ex.update(dt);
     this._explosions = this._explosions.filter(ex => !ex.done);

@@ -33,6 +33,8 @@ export class Player {
 
   /** Horizontal look angle (yaw) in radians. */
   yaw = 0;
+  /** Set true by game mode to disable jumping (e.g. Haunted). */
+  blockJump = false;
 
   private _stamina   = SPRINT_STAMINA_MAX;
   private _sprinting = false;
@@ -234,7 +236,7 @@ export class Player {
     }
 
     // Jump
-    if ((input.isDown("Space") || input.isDown("KeyE")) && this.onGround) {
+    if (!this.blockJump && (input.isDown("Space") || input.isDown("KeyE")) && this.onGround) {
       this.velocity.y = JUMP_FORCE;
       this.onGround = false;
     }
