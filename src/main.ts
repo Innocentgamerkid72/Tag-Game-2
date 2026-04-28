@@ -629,6 +629,7 @@ function gameLoop() {
   // are in place when player/bot positions are resolved.
   for (const mp of map?.movingPlatforms ?? []) mp.preUpdate(dt);
 
+  player.blockJump = roundManager.mode.name === "Haunted";
   player.update(dt, input, colliders, walls, boundary, map?.groundY ?? 0, map?.voidBoundary);
 
   // Remove stale remote players (disconnected peers)
@@ -864,12 +865,15 @@ function gameLoop() {
   const isInfection  = roundManager.mode.name === "Infection";
   const isInfectionZombie  = isInfection && (player as unknown as Controllable).isIt;
   const isInfectionHealthy = isInfection && !(player as unknown as Controllable).isIt;
+  const isHauntedGhost = isHaunted && (player as unknown as Controllable).isIt;
 
-  // Weapons active for: Tomfoolery, Infection (both sides), admin-given, Hunter IT
-  const weaponsActive = isTomfoolery || isInfectionHealthy || isInfectionZombie || adminGiveUsedRound === roundManager.roundId || playerIsHunter;
+  // Weapons active for: Tomfoolery, Infection (both sides), admin-given, Hunter IT, Haunted ghost
+  const weaponsActive = isTomfoolery || isInfectionHealthy || isInfectionZombie || adminGiveUsedRound === roundManager.roundId || playerIsHunter || isHauntedGhost;
 
   // Force zombie into bite weapon every frame
   if (isInfectionZombie) weapon.setWeapon("bite");
+  // Force ghost into dagger every frame
+  if (isHauntedGhost) weapon.setWeapon("dagger");
 
   // ── Zombie pounce / vomit (player) ───────────────────────────────────────────
   if (isInfectionZombie && !player.isEliminated) {
@@ -933,7 +937,7 @@ function gameLoop() {
   // ── Crosshair ─────────────────────────────────────────────────────────────────
   const WEAPON_COLORS: Record<string, string> = {
     rocket: "#ff2200", freeze: "#44aaff", shotgun: "#ffee33",
-    sword: "#aaddff", blaster: "#00ff44", bite: "#ff3300",
+    sword: "#aaddff", blaster: "#00ff44", bite: "#ff3300", dagger: "#cc44ff",
   };
   if (weaponsActive && input.pointerLocked && !player.isEliminated) {
     crosshairEl.style.display = "block";
@@ -958,6 +962,8 @@ function gameLoop() {
   if (weaponsActive) {
     if (isInfectionZombie) {
       // Zombie — locked to bite, no switching
+    } else if (isHauntedGhost) {
+      // Ghost — locked to dagger, no switching
     } else if (isInfectionHealthy) {
       // Healthy in infection — only sword (1) and blaster (5)
       if (input.isDown("Digit1")) weapon.setWeapon(WEAPON_ORDER[0]);
@@ -979,7 +985,12 @@ function gameLoop() {
     }
 
     // Weapon HUD
-    if (isInfectionZombie) {
+    if (isHauntedGhost) {
+      weaponHudEl.innerHTML = `<div style="
+        padding:6px 14px;font-family:monospace;font-size:13px;border-radius:6px;
+        background:#cc44ff22;border:2px solid #cc44ff;color:#cc44ff;font-weight:bold;text-align:center;
+      ">[LMB] Dagger — stab from BEHIND</div>`;
+    } else if (isInfectionZombie) {
       // Zombie HUD — class-aware bite + pounce/vomit slots
       const lpc2 = player as unknown as Controllable;
       const zombieCls2  = zombieClasses.get(lpc2) ?? "regular";
@@ -1381,7 +1392,7 @@ function gameLoop() {
     // Dynamic fog: ghost sees farther, survivors get very short range
     const localIsGhost = (player as unknown as Controllable).isIt;
     if (scene.fog instanceof THREE.FogExp2) {
-      scene.fog.density = localIsGhost ? 0.055 : 0.20;
+      scene.fog.density = localIsGhost ? 0.055 : 0.28;
     }
 
     // Ghost entities (IT) are 50% transparent so survivors can barely make them out

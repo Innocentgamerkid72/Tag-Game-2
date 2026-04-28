@@ -245,47 +245,25 @@ export function buildHauntedMap(scene: THREE.Scene): MapResult {
   lantern(-20, -20, 1.6);
   lantern( 20,  20, 1.6);
 
-  // ── Teleporters (dim cryptic pads) ────────────────────────────────────────
-  function addTp(x: number, z: number, dx: number, dz: number): Teleporter {
-    const pad = add(new THREE.Mesh(
-      new THREE.CylinderGeometry(0.7, 0.7, 0.15, 16),
-      new THREE.MeshLambertMaterial({ color: 0x440066, emissive: new THREE.Color(0x220033) }),
-    ));
-    pad.position.set(x, 0.08, z);
-    const ring = add(new THREE.Mesh(
-      new THREE.TorusGeometry(0.85, 0.08, 8, 24),
-      new THREE.MeshBasicMaterial({ color: 0x9922ff }),
-    ));
-    ring.position.set(x, 0.15, z);
-    ring.rotation.x = Math.PI / 2;
-    add(new THREE.PointLight(0x6600cc, 0.8, 4)).position.set(x, 0.8, z);
-    const canvas = document.createElement("canvas");
-    canvas.width = 128; canvas.height = 128;
-    const texture = new THREE.CanvasTexture(canvas);
-    const sprite = add(new THREE.Sprite(
-      new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false }),
-    ));
-    sprite.position.set(x, 1.6, z);
-    sprite.scale.set(1.2, 1.2, 1);
-    sprite.visible = false;
-    const tp: Teleporter = {
-      trigger: new THREE.Box3(
-        new THREE.Vector3(x - 0.7, 0, z - 0.7),
-        new THREE.Vector3(x + 0.7, 0.5, z + 0.7),
-      ),
-      destination: new THREE.Vector3(dx, 1, dz),
-      cooldown: 0, sprite, texture, canvas,
-    };
-    teleporters.push(tp);
-    return tp;
-  }
+  // ── Mid-corridor L-walls (blind-corner ambush spots in each quadrant) ──────
+  wall(-5, -13, 7, 3.0, 0.4, 0x28241e);
+  wall(-8,  -9, 0.4, 3.0, 7,  0x28241e);
+  wall( 5, -13, 7, 3.0, 0.4, 0x28241e);
+  wall( 8,  -9, 0.4, 3.0, 7,  0x28241e);
+  wall(-5,  13, 7, 3.0, 0.4, 0x28241e);
+  wall(-8,   9, 0.4, 3.0, 7,  0x28241e);
+  wall( 5,  13, 7, 3.0, 0.4, 0x28241e);
+  wall( 8,   9, 0.4, 3.0, 7,  0x28241e);
 
-  const tp1 = addTp(-33, -33,  33,  33);
-  const tp2 = addTp( 33,  33, -33, -33);
-  tp1.link = tp2; tp2.link = tp1;
-  const tp3 = addTp( 33, -33, -33,  33);
-  const tp4 = addTp(-33,  33,  33, -33);
-  tp3.link = tp4; tp4.link = tp3;
+  // ── Outer choke-point stubs (narrow the edge lanes) ───────────────────────
+  wall(-21,  -5, 0.4, 3.0, 8, 0x28241e);
+  wall(-21,   5, 0.4, 3.0, 8, 0x28241e);
+  wall( 21,  -5, 0.4, 3.0, 8, 0x28241e);
+  wall( 21,   5, 0.4, 3.0, 8, 0x28241e);
+  wall( -5, -21, 8, 3.0, 0.4, 0x28241e);
+  wall(  5, -21, 8, 3.0, 0.4, 0x28241e);
+  wall( -5,  21, 8, 3.0, 0.4, 0x28241e);
+  wall(  5,  21, 8, 3.0, 0.4, 0x28241e);
 
   return {
     colliders, walls, teleporters,
