@@ -1,5 +1,79 @@
 import * as THREE from "three";
 import { MapResult, Teleporter } from "../testMap";
+import { Controllable } from "../types";
+
+// ── Falling cargo box ─────────────────────────────────────────────────────────
+class FallingBox {
+  private readonly _mesh: THREE.Mesh;
+  private _timer:   number;   // seconds until it tips off the shelf
+  private _falling  = false;
+  private _fallen   = false;
+  private _vy       = 0;      // downward velocity (grows with gravity)
+  private _vx:      number;   // slight horizontal drift
+  private _vz:      number;
+  private readonly _size:  number;
+  private readonly _walls: THREE.Box3[];
+
+  constructor(
+    x: number, shelfTopY: number, z: number,
+    size: number, color: number,
+    add:   (o: THREE.Object3D) => void,
+    walls: THREE.Box3[],
+  ) {
+    this._size  = size;
+    this._walls = walls;
+
+    // 65% chance to fall; the rest stay on the shelf all round
+    this._timer = Math.random() < 0.65
+      ? 8 + Math.random() * 50   // falls 8–58 s into the round
+      : Infinity;
+
+    // Slight random drift so boxes scatter into the aisles
+    this._vx = (Math.random() - 0.5) * 2.5;
+    this._vz = (Math.random() - 0.5) * 2.5;
+
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(size, size, size),
+      new THREE.MeshLambertMaterial({ color }),
+    );
+    mesh.position.set(x, shelfTopY + size / 2, z);
+    mesh.castShadow = true;
+    add(mesh);
+    this._mesh = mesh;
+  }
+
+  update(dt: number, _entities: Controllable[]) {
+    if (this._fallen || this._timer === Infinity) return;
+
+    if (!this._falling) {
+      this._timer -= dt;
+      if (this._timer <= 0) this._falling = true;
+      return;
+    }
+
+    // Gravity + tumble
+    this._vy += 30 * dt;
+    this._mesh.position.y -= this._vy * dt;
+    this._mesh.position.x += this._vx * dt;
+    this._mesh.position.z += this._vz * dt;
+    this._mesh.rotation.z += (this._vx > 0 ? 3.5 : -3.5) * dt;
+    this._mesh.rotation.x += (this._vz > 0 ? 2.5 : -2.5) * dt;
+
+    const landY = this._size / 2;
+    if (this._mesh.position.y <= landY) {
+      this._mesh.position.y = landY;
+      this._fallen = true;
+
+      // Register as a solid wall obstacle for the rest of the round
+      const p  = this._mesh.position;
+      const hs = this._size / 2;
+      this._walls.push(new THREE.Box3(
+        new THREE.Vector3(p.x - hs, 0,           p.z - hs),
+        new THREE.Vector3(p.x + hs, this._size,  p.z + hs),
+      ));
+    }
+  }
+}
 
 const BOUNDARY  = 42;
 const FLOOR2_Y  = 10;   // 2nd floor elevation
@@ -7,9 +81,10 @@ const MZ        = 28;   // mezzanine half-span (x/z from -MZ to +MZ)
 const GAP       = 5;    // half-width of center skylight hole
 
 export function buildWarehouseMap(scene: THREE.Scene): MapResult {
-  const colliders: THREE.Box3[] = [];
-  const walls:     THREE.Box3[] = [];
-  const teleporters: Teleporter[] = [];
+  const colliders:    THREE.Box3[] = [];
+  const walls:        THREE.Box3[] = [];
+  const teleporters:  Teleporter[] = [];
+  const fallingBoxes: FallingBox[] = [];
 
   const _objs: THREE.Object3D[] = [];
   function add<T extends THREE.Object3D>(o: T): T { scene.add(o); _objs.push(o); return o; }
@@ -102,7 +177,8 @@ export function buildWarehouseMap(scene: THREE.Scene): MapResult {
     }
     for (let i = -1; i <= 1; i++) {
       const bs = 0.65 + Math.random() * 0.45;
-      box(cx, H2 + T, cz + i * (len / 3.2), bs, bs, bs, 0x8b6914); // cargo box
+      const bz = cz + i * (len / 3.2);
+      fallingBoxes.push(new FallingBox(cx, H2 + T, bz, bs, 0x8b6914, add, walls));
     }
   }
 
@@ -323,7 +399,7 @@ export function buildWarehouseMap(scene: THREE.Scene): MapResult {
     colliders,
     walls,
     teleporters,
-    hazards: [],
+    hazards: fallingBoxes,
     boundary: BOUNDARY,
     gravity: -28,
     background: 0x140e06,
