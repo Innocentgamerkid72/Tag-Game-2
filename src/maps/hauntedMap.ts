@@ -11,7 +11,7 @@ export function buildHauntedMap(scene: THREE.Scene): MapResult {
   const _objs: THREE.Object3D[] = [];
   function add<T extends THREE.Object3D>(o: T): T { scene.add(o); _objs.push(o); return o; }
 
-  scene.fog = new THREE.FogExp2(0x08060c, 0.055);
+  scene.fog = new THREE.FogExp2(0x04020a, 0.20);
 
   // Ground — dark earth
   const ground = add(new THREE.Mesh(

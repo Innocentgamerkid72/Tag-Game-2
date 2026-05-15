@@ -69,8 +69,23 @@ export class RoundManager {
   get modeNames() { return MODES.map(m => m.name); }
   get nextMapIdx()  { return this._adminMapIdx  ?? this._mapIdx; }
   get nextModeIdx() { return this._adminModeIdx ?? this._modeIdx; }
+  get mapIdx()  { return this._mapIdx; }
+  get modeIdx() { return this._modeIdx; }
+  get timer()   { return this._timer; }
+  get isTransitioning() { return this._transitioning; }
   setNextMap(idx: number | null)  { this._adminMapIdx  = idx; }
   setNextMode(idx: number | null) { this._adminModeIdx = idx; }
+
+  /** Force-jump to a specific map/mode/round (used when a latejoiner receives roundsync). */
+  jumpToRound(mapIdx: number, modeIdx: number, roundId: number, timeLeft: number) {
+    this._transitioning = false;
+    this._overlayEl.style.display = "none";
+    this._mapIdx  = mapIdx;
+    this._modeIdx = modeIdx;
+    this._roundId = roundId - 1; // _buildRound increments by 1
+    this._buildRound();
+    this._timer = timeLeft; // override the full ROUND_TIME reset done by _buildRound
+  }
 
   startRound() {
     try {

@@ -219,11 +219,20 @@ function handleNetMessage(msg: NetMsg) {
       remotePlayers.set(msg.peerId, rp);
     }
     rp.applyState(msg);
-    // When a new peer joins mid-round, the host re-broadcasts who is IT
-    // so the latejoiner doesn't keep their locally-chosen IT.
-    if (isNewPeer && roundManager.mode.name !== "Tomfoolery") {
+    // When a new peer joins mid-round, every existing player broadcasts the
+    // current round state so the latejoiner gets it quickly regardless of
+    // peerId ordering. Only the host re-sends who is IT.
+    if (isNewPeer) {
       const allIds = [network.peerId, ...knownPeers].sort();
-      if (allIds[0] === network.peerId) { // I'm the host
+      if (!roundManager.isTransitioning) {
+        network.sendRoundSync(
+          roundManager.mapIdx,
+          roundManager.modeIdx,
+          roundManager.roundId,
+          Math.max(0, roundManager.timer),
+        );
+      }
+      if (allIds[0] === network.peerId && roundManager.mode.name !== "Tomfoolery") {
         const itId = findCurrentItPeerId();
         if (itId) network.sendSetIt(itId, roundManager.roundId);
       }
@@ -242,6 +251,18 @@ function handleNetMessage(msg: NetMsg) {
     tagged?.setIt(true);
     if (msg.taggerId === network.peerId) { (player as unknown as Controllable).setIt(false); player.tagImmunity = 2; }
     if (msg.taggedId  === network.peerId) (player as unknown as Controllable).setIt(true);
+    return;
+  }
+  if (msg.type === "roundsync") {
+    // Apply if anything differs — roundId alone isn't enough since both players
+    // could be on round 1 but on different maps (e.g. Grasslands vs Retro City)
+    if (roundManager.roundId !== msg.roundId
+        || roundManager.mapIdx  !== msg.mapIdx
+        || roundManager.modeIdx !== msg.modeIdx) {
+      roundManager.jumpToRound(msg.mapIdx, msg.modeIdx, msg.roundId, msg.timeLeft);
+      // Force new-round detection in the game loop to reset per-round state
+      lastRoundId = -1;
+    }
     return;
   }
   if (msg.type === "leave") {

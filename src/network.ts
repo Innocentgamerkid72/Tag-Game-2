@@ -8,7 +8,8 @@ export type NetMsg =
       yaw: number; isFrozen: boolean; isEliminated: boolean; }
   | { type: "tag";   peerId: string; taggerId: string; taggedId: string; }
   | { type: "setit"; peerId: string; itPeerId: string; roundId: number; }
-  | { type: "leave"; peerId: string; };
+  | { type: "leave"; peerId: string; }
+  | { type: "roundsync"; peerId: string; mapIdx: number; modeIdx: number; roundId: number; timeLeft: number; };
 
 const ABLY_KEY = "CTFlEA.V1yraA:sxcJVgiYCm20Ts4jknPPnR3nr6rwN1P-EBOECxWt8FI";
 
@@ -82,6 +83,10 @@ export class NetworkManager {
 
   sendLeave() {
     this._publish({ type: "leave", peerId: this.peerId });
+  }
+
+  sendRoundSync(mapIdx: number, modeIdx: number, roundId: number, timeLeft: number) {
+    this._publish({ type: "roundsync", peerId: this.peerId, mapIdx, modeIdx, roundId, timeLeft });
   }
 
   private _publish(msg: NetMsg) {
