@@ -151,6 +151,56 @@ export function buildArcticMap(scene: THREE.Scene): MapResult {
   iceBlock(-12, -42, 18,  3, 1.5); // E-W wall north
   iceBlock( 12,  42, 18,  3, 1.5); // E-W wall south
 
+  // ── Igloo (SW corner) ─────────────────────────────────────────────────────
+  {
+    const cx = -46, cz = 38;
+    const dome = add(new THREE.Mesh(
+      new THREE.SphereGeometry(4.5, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+      new THREE.MeshLambertMaterial({ color: 0xeef6ff }),
+    ));
+    dome.position.set(cx, 0, cz);
+    dome.castShadow = true;
+    walls.push(new THREE.Box3(
+      new THREE.Vector3(cx - 4.5, 0, cz - 4.5),
+      new THREE.Vector3(cx + 4.5, 4.5, cz + 4.5),
+    ));
+    // Entrance tunnel
+    const entrance = add(new THREE.Mesh(
+      new THREE.BoxGeometry(2.6, 2.8, 3.5),
+      new THREE.MeshLambertMaterial({ color: 0xd8eeff }),
+    ));
+    entrance.position.set(cx, 1.4, cz - 5.8);
+    entrance.castShadow = true;
+    walls.push(new THREE.Box3().setFromObject(entrance));
+    // Warm interior glow
+    add(new THREE.PointLight(0xff9944, 1.0, 14)).position.set(cx, 2.5, cz);
+  }
+
+  // ── Snow drifts (opaque white low barriers for mid-map cover) ─────────────
+  function snowDrift(x: number, z: number, w: number, h: number, d: number) {
+    const mesh = add(new THREE.Mesh(
+      new THREE.BoxGeometry(w, h, d),
+      new THREE.MeshLambertMaterial({ color: 0xeef5ff }),
+    ));
+    mesh.position.set(x, h / 2, z);
+    mesh.castShadow = true;
+    walls.push(new THREE.Box3().setFromObject(mesh));
+  }
+  snowDrift(-14,  -5, 14, 1.8, 2.5); snowDrift( 14,   5, 14, 1.8, 2.5);
+  snowDrift( -5, -18, 2.5, 1.8, 14); snowDrift(  5,  18, 2.5, 1.8, 14);
+  snowDrift(-32,  16,  8, 2.2, 2.5); snowDrift( 32, -16,  8, 2.2, 2.5);
+  snowDrift( 16, -32, 2.5, 2.2,  8); snowDrift(-16,  32, 2.5, 2.2,  8);
+
+  // ── Glacier formations (N and S walls, tall overlapping ice slabs) ─────────
+  iceBlock(  0, -42, 7, 20, 3);   iceBlock(  5, -40, 3, 24, 2.5);
+  iceBlock( -5, -44, 3, 16, 2.5); iceBlock(  0, -38, 4, 22, 1.8);
+  iceBlock(  0,  42, 7, 18, 3);   iceBlock( -5,  40, 3, 22, 2.5);
+  iceBlock(  5,  44, 3, 14, 2.5);
+
+  // ── Aurora overhead lights ────────────────────────────────────────────────
+  add(new THREE.PointLight(0x44ff88, 1.4, 240)).position.set(-20, 90, -20);
+  add(new THREE.PointLight(0x2255ff, 0.7, 220)).position.set( 20, 95,  20);
+
   // ── Teleporters: corners ↔ opposite ice platforms ─────────────────────────
   const tp1 = addTeleporter(-56, -56,  34,  4.35,  28);
   const tp2 = addTeleporter( 56,  56, -34,  4.35, -30);

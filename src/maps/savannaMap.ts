@@ -149,6 +149,75 @@ export function buildSavannaMap(scene: THREE.Scene): MapResult {
   ];
   for (const [tx, tz] of trees) addTree(tx, tz);
 
+  // ── Waterhole ─────────────────────────────────────────────────────────────
+  add(new THREE.Mesh(
+    new THREE.CylinderGeometry(5.5, 5.5, 0.06, 32),
+    new THREE.MeshLambertMaterial({ color: 0x3a6a8a, transparent: true, opacity: 0.82 }),
+  )).position.set(-6, 0.04, 6);
+
+  // ── Termite mounds ────────────────────────────────────────────────────────
+  function addMound(x: number, z: number, h: number) {
+    const r = h * 0.38;
+    const cone = add(new THREE.Mesh(
+      new THREE.ConeGeometry(r, h, 7),
+      new THREE.MeshLambertMaterial({ color: 0x8a5c20 }),
+    ));
+    cone.position.set(x, h / 2, z);
+    cone.castShadow = true;
+    walls.push(new THREE.Box3(
+      new THREE.Vector3(x - r, 0, z - r),
+      new THREE.Vector3(x + r, h, z + r),
+    ));
+  }
+  addMound( -8,  14, 3.5); addMound( 12, -10, 4.2);
+  addMound(-20,   6, 2.8); addMound( 24,  18, 3.2);
+  addMound(-34, -14, 4.5); addMound( 18,  32, 3.0);
+  addMound(-24, -34, 3.8); addMound( 38,   8, 2.6);
+
+  // ── Baobab trees (thick trunk, stubby gnarled branches) ───────────────────
+  function addBaobab(x: number, z: number) {
+    const trunkH = 6.5;
+    const trunk = add(new THREE.Mesh(
+      new THREE.CylinderGeometry(1.0, 1.5, trunkH, 8),
+      new THREE.MeshLambertMaterial({ color: 0x7a5028 }),
+    ));
+    trunk.position.set(x, trunkH / 2, z);
+    trunk.castShadow = true;
+    walls.push(new THREE.Box3(
+      new THREE.Vector3(x - 1.6, 0, z - 1.6),
+      new THREE.Vector3(x + 1.6, trunkH, z + 1.6),
+    ));
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2 + 0.2;
+      const br = add(new THREE.Mesh(
+        new THREE.CylinderGeometry(0.2, 0.38, 2.4, 5),
+        new THREE.MeshLambertMaterial({ color: 0x6a4020 }),
+      ));
+      br.position.set(x + Math.cos(a) * 1.4, trunkH + 0.4, z + Math.sin(a) * 1.4);
+      br.rotation.z = Math.cos(a) * 0.55;
+      br.rotation.x = Math.sin(a) * 0.55;
+    }
+    const canopy = add(new THREE.Mesh(
+      new THREE.SphereGeometry(2.4, 8, 5),
+      new THREE.MeshLambertMaterial({ color: 0x2a5510 }),
+    ));
+    canopy.position.set(x, trunkH + 2, z);
+    canopy.castShadow = true;
+  }
+  addBaobab(-38,  24); addBaobab( 40, -22);
+  addBaobab(  8, -46); addBaobab(-10,  46);
+  addBaobab( 48,  14); addBaobab(-46, -18);
+
+  // ── Tall sentinel rocks (vulture perches — walkable tops) ─────────────────
+  addMesa( 28, -10, 4, 4, 10);
+  addMesa(-26,  10, 4, 4,  9);
+
+  // ── L-shaped rocky outcrops for mid-map cover ─────────────────────────────
+  addRock( -8,  22, 11, 2, 2.5); addRock( -8,  20, 2, 6, 2.5);
+  addRock(  8, -22, 11, 2, 2.5); addRock(  8, -20, 2, 6, 2.5);
+  addRock( 22,  -8, 2, 2.5, 11); addRock( 20,  -8, 6, 2.5, 2);
+  addRock(-22,   8, 2, 2.5, 11); addRock(-20,   8, 6, 2.5, 2);
+
   // ── Teleporters: corners ↔ opposite mesas ─────────────────────────────────
   // tp1 (far NW corner) → SE mesa top; tp2 (far SE corner) → NW mesa top
   const tp1 = addTeleporter(-52, -52,  32,  5.6,  26);
