@@ -112,13 +112,14 @@ export function buildHauntedMap(scene: THREE.Scene): MapResult {
   // ── Central mausoleum ─────────────────────────────────────────────────────
   // Hollow: 4 wall slabs + roof, doorways on N and S
   const MX = 0, MZ = 0, MW = 10, MD = 10, MH = 6;
-  const doorW = 2.4;
-  // N wall (two halves with gap)
-  wall(MX - (MW - doorW) / 4 - doorW / 4, MZ - MD / 2, (MW - doorW) / 2, MH, 0.5, 0x2a2420);
-  wall(MX + (MW - doorW) / 4 + doorW / 4, MZ - MD / 2, (MW - doorW) / 2, MH, 0.5, 0x2a2420);
+  const doorW = 3.5; // wide enough for bots to pass through
+  const halfW = (MW - doorW) / 2;  // width of each wall slab
+  // N wall (two halves with gap) — each half is flush against the outer edge
+  wall(MX - MW / 2 + halfW / 2, MZ - MD / 2, halfW, MH, 0.5, 0x2a2420);
+  wall(MX + MW / 2 - halfW / 2, MZ - MD / 2, halfW, MH, 0.5, 0x2a2420);
   // S wall (two halves with gap)
-  wall(MX - (MW - doorW) / 4 - doorW / 4, MZ + MD / 2, (MW - doorW) / 2, MH, 0.5, 0x2a2420);
-  wall(MX + (MW - doorW) / 4 + doorW / 4, MZ + MD / 2, (MW - doorW) / 2, MH, 0.5, 0x2a2420);
+  wall(MX - MW / 2 + halfW / 2, MZ + MD / 2, halfW, MH, 0.5, 0x2a2420);
+  wall(MX + MW / 2 - halfW / 2, MZ + MD / 2, halfW, MH, 0.5, 0x2a2420);
   // E and W walls (solid)
   wall(MX - MW / 2, MZ, 0.5, MH, MD, 0x2a2420);
   wall(MX + MW / 2, MZ, 0.5, MH, MD, 0x2a2420);

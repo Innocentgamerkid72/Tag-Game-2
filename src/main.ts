@@ -1277,14 +1277,23 @@ function gameLoop() {
       resetWeaponCallbacks();
     }
 
-    // Host picks who is IT and broadcasts; non-host waits for setit.
-    if (knownPeers.size > 0 && roundManager.mode.name !== "Tomfoolery") {
+    // Host picks who is IT, broadcasts the new round state to all peers.
+    if (knownPeers.size > 0) {
       const allIds = [network.peerId, ...knownPeers].sort();
       const isHost = allIds[0] === network.peerId;
       if (isHost) {
-        const itPeerId = allIds[roundManager.roundId % allIds.length];
-        applyItPeer(itPeerId);
-        network.sendSetIt(itPeerId, roundManager.roundId);
+        // Push new round to every peer so their map/mode/timer stays in lockstep
+        network.sendRoundSync(
+          roundManager.mapIdx,
+          roundManager.modeIdx,
+          roundManager.roundId,
+          roundManager.timer,
+        );
+        if (roundManager.mode.name !== "Tomfoolery") {
+          const itPeerId = allIds[roundManager.roundId % allIds.length];
+          applyItPeer(itPeerId);
+          network.sendSetIt(itPeerId, roundManager.roundId);
+        }
       } else {
         // Clear all local IT flags and wait for the host's setit message
         (player as unknown as Controllable).setIt(false);

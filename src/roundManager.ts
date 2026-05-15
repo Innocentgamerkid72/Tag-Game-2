@@ -365,11 +365,13 @@ export class RoundManager {
     this._currentMap = MAP_BUILDERS[this._mapIdx](this._scene);
     const { background, gravity } = this._currentMap;
     this._scene.background = new THREE.Color(background);
-    // Reset fog: sky-blue fog for normal maps, none for void maps
-    const mapGroundY = this._currentMap.groundY;
-    this._scene.fog = (mapGroundY === undefined || mapGroundY >= -10)
-      ? new THREE.Fog(0x87ceeb, 50, 120)
-      : null;
+    // Set default fog only if the map builder didn't install a custom one (e.g. FogExp2)
+    if (!(this._scene.fog instanceof THREE.FogExp2)) {
+      const mapGroundY = this._currentMap.groundY;
+      this._scene.fog = (mapGroundY === undefined || mapGroundY >= -10)
+        ? new THREE.Fog(0x87ceeb, 50, 120)
+        : null;
+    }
     setGravity(gravity);
 
     // Spawn player — use map-specific position if defined
