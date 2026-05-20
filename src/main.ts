@@ -175,6 +175,7 @@ const remotePlayers    = new Map<string, RemotePlayer>();
 const knownPeers       = new Set<string>(); // all peer IDs seen this session
 const remoteUsernames  = new Map<string, string>(); // peerId → username (tracked pre-login)
 const remoteAdmins     = new Set<string>(); // peerIds of remote players with admin
+const remoteJoinedAt   = new Map<string, number>(); // peerId → Date.now() when they called startGame
 
 const roomCodeEl = document.getElementById("room-code");
 if (roomCodeEl) {
@@ -185,6 +186,17 @@ if (roomCodeEl) {
     roomCodeEl.textContent = "✓ Copied!";
     setTimeout(() => { roomCodeEl.textContent = `🔗 ${shareUrl}`; }, 1500);
   });
+}
+
+// Returns the peerId of whoever joined earliest — they own the authoritative timer.
+let localJoinedAt = 0;
+function timerHostPeerId(): string {
+  let hostId = network.peerId;
+  let hostTime = localJoinedAt;
+  for (const [id, t] of remoteJoinedAt) {
+    if (t < hostTime || (t === hostTime && id < hostId)) { hostTime = t; hostId = id; }
+  }
+  return hostId;
 }
 
 function findCurrentItPeerId(): string | null {
@@ -212,6 +224,7 @@ function handleNetMessage(msg: NetMsg) {
     const isNewPeer = !remotePlayers.has(msg.peerId);
     knownPeers.add(msg.peerId);
     remoteUsernames.set(msg.peerId, msg.username);
+    remoteJoinedAt.set(msg.peerId, msg.joinedAt);
     if (msg.isAdmin) remoteAdmins.add(msg.peerId); else remoteAdmins.delete(msg.peerId);
     let rp = remotePlayers.get(msg.peerId);
     if (!rp) {
@@ -219,11 +232,10 @@ function handleNetMessage(msg: NetMsg) {
       remotePlayers.set(msg.peerId, rp);
     }
     rp.applyState(msg);
-    // If this sender is the host (lowest peerId), use their timer as the
-    // authoritative clock so all clients stay in lockstep.
+    // If this sender is the original host (earliest joinedAt), use their
+    // timer as the authoritative clock so all clients stay in lockstep.
     if (!roundManager.isTransitioning && msg.roundId === roundManager.roundId) {
-      const allIds = [network.peerId, ...knownPeers].sort();
-      if (msg.peerId === allIds[0]) roundManager.syncTimer(msg.timeLeft);
+      if (msg.peerId === timerHostPeerId()) roundManager.syncTimer(msg.timeLeft);
     }
     // When a new peer joins mid-round, every existing player broadcasts the
     // current round state so the latejoiner gets it quickly regardless of
@@ -276,6 +288,7 @@ function handleNetMessage(msg: NetMsg) {
     knownPeers.delete(msg.peerId);
     remoteUsernames.delete(msg.peerId);
     remoteAdmins.delete(msg.peerId);
+    remoteJoinedAt.delete(msg.peerId);
     const rp = remotePlayers.get(msg.peerId);
     if (rp) { rp.removeFromScene(scene); remotePlayers.delete(msg.peerId); }
   }
@@ -533,6 +546,7 @@ adminBtn.addEventListener("click", () => {
 });
 
 function startGame(nickname: string) {
+  localJoinedAt = Date.now();
   localUsername = nickname;
   loginOverlay.style.display = "none";
   gameStarted = true;
@@ -662,7 +676,7 @@ function gameLoop() {
 
   // Remove stale remote players (disconnected peers)
   for (const [id, rp] of remotePlayers) {
-    if (rp.isStale) { rp.removeFromScene(scene); remotePlayers.delete(id); }
+    if (rp.isStale) { rp.removeFromScene(scene); remotePlayers.delete(id); remoteJoinedAt.delete(id); }
     else rp.update(dt);
   }
 
@@ -1359,6 +1373,7 @@ function gameLoop() {
         isEliminated: p.isEliminated,
         roundId:      roundManager.roundId,
         timeLeft:     roundManager.timer,
+        joinedAt:     localJoinedAt,
       });
     }
   }
