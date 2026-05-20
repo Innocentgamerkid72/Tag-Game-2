@@ -5,7 +5,8 @@ export type NetMsg =
   | { type: "state"; peerId: string; username: string; isAdmin: boolean;
       x: number; y: number; z: number;
       vx: number; vy: number; vz: number;
-      yaw: number; isFrozen: boolean; isEliminated: boolean; }
+      yaw: number; isFrozen: boolean; isEliminated: boolean;
+      roundId: number; timeLeft: number; }
   | { type: "tag";   peerId: string; taggerId: string; taggedId: string; }
   | { type: "setit"; peerId: string; itPeerId: string; roundId: number; }
   | { type: "leave"; peerId: string; }

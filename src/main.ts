@@ -219,6 +219,12 @@ function handleNetMessage(msg: NetMsg) {
       remotePlayers.set(msg.peerId, rp);
     }
     rp.applyState(msg);
+    // If this sender is the host (lowest peerId), use their timer as the
+    // authoritative clock so all clients stay in lockstep.
+    if (!roundManager.isTransitioning && msg.roundId === roundManager.roundId) {
+      const allIds = [network.peerId, ...knownPeers].sort();
+      if (msg.peerId === allIds[0]) roundManager.syncTimer(msg.timeLeft);
+    }
     // When a new peer joins mid-round, every existing player broadcasts the
     // current round state so the latejoiner gets it quickly regardless of
     // peerId ordering. Only the host re-sends who is IT.
@@ -254,14 +260,15 @@ function handleNetMessage(msg: NetMsg) {
     return;
   }
   if (msg.type === "roundsync") {
-    // Apply if anything differs — roundId alone isn't enough since both players
-    // could be on round 1 but on different maps (e.g. Grasslands vs Retro City)
     if (roundManager.roundId !== msg.roundId
         || roundManager.mapIdx  !== msg.mapIdx
         || roundManager.modeIdx !== msg.modeIdx) {
+      // Different round — rebuild everything
       roundManager.jumpToRound(msg.mapIdx, msg.modeIdx, msg.roundId, msg.timeLeft);
-      // Force new-round detection in the game loop to reset per-round state
       lastRoundId = -1;
+    } else {
+      // Same round — just align the timer
+      roundManager.syncTimer(msg.timeLeft);
     }
     return;
   }
@@ -1350,6 +1357,8 @@ function gameLoop() {
         yaw:          player.yaw,
         isFrozen:     p.isFrozen,
         isEliminated: p.isEliminated,
+        roundId:      roundManager.roundId,
+        timeLeft:     roundManager.timer,
       });
     }
   }

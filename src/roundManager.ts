@@ -76,6 +76,11 @@ export class RoundManager {
   setNextMap(idx: number | null)  { this._adminMapIdx  = idx; }
   setNextMode(idx: number | null) { this._adminModeIdx = idx; }
 
+  /** Nudge the timer toward the host's value without rebuilding the round. */
+  syncTimer(timeLeft: number) {
+    this._timer = timeLeft;
+  }
+
   /** Force-jump to a specific map/mode/round (used when a latejoiner receives roundsync). */
   jumpToRound(mapIdx: number, modeIdx: number, roundId: number, timeLeft: number) {
     this._transitioning = false;
