@@ -1299,9 +1299,10 @@ function gameLoop() {
     }
 
     // Host picks who is IT, broadcasts the new round state to all peers.
+    // Use joinedAt-based host election so the original player always drives round sync.
     if (knownPeers.size > 0) {
       const allIds = [network.peerId, ...knownPeers].sort();
-      const isHost = allIds[0] === network.peerId;
+      const isHost = timerHostPeerId() === network.peerId;
       if (isHost) {
         // Push new round to every peer so their map/mode/timer stays in lockstep
         network.sendRoundSync(
