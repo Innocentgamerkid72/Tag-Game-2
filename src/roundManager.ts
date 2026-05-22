@@ -52,6 +52,8 @@ export class RoundManager {
   private _adminMapIdx:  number | null = null;
   private _adminModeIdx: number | null = null;
   isAdmin = false;
+  /** Set to false on non-host clients so they never independently trigger round transitions. */
+  isLocalAuthority = true;
 
   constructor(
     private _scene: THREE.Scene,
@@ -157,9 +159,13 @@ export class RoundManager {
     }
 
     if (this._timer <= 0 || this._mode.isRoundOver(allEntities)) {
-      const active = allEntities.filter(e => !e.isEliminated);
-      console.log(`[RoundOver] timer=${this._timer.toFixed(1)}, active=${active.length}`);
-      this._startTransition();
+      if (this.isLocalAuthority) {
+        const active = allEntities.filter(e => !e.isEliminated);
+        console.log(`[RoundOver] timer=${this._timer.toFixed(1)}, active=${active.length}`);
+        this._startTransition();
+      } else {
+        this._timer = 0; // freeze at 0 — wait for host's roundsync to advance the round
+      }
     }
   }
 

@@ -1143,6 +1143,9 @@ function gameLoop() {
 
   weapon.update(dt, scene, player as unknown as Controllable, allEntities, colliders, walls);
 
+  // Only the earliest-joined player drives round transitions — non-hosts freeze at 0 and wait for roundsync.
+  roundManager.isLocalAuthority = knownPeers.size === 0 || timerHostPeerId() === network.peerId;
+
   // Round manager only handles local entities — bots don't interact with remote players
   roundManager.update(dt, localEntities);
 
