@@ -54,6 +54,7 @@ export class RoundManager {
   isAdmin = false;
   /** Set to false on non-host clients so they never independently trigger round transitions. */
   isLocalAuthority = true;
+  private _nonHostWaiting = false;
 
   constructor(
     private _scene: THREE.Scene,
@@ -86,6 +87,7 @@ export class RoundManager {
   /** Force-jump to a specific map/mode/round (used when a latejoiner receives roundsync). */
   jumpToRound(mapIdx: number, modeIdx: number, roundId: number, timeLeft: number) {
     this._transitioning = false;
+    this._nonHostWaiting = false;
     this._overlayEl.style.display = "none";
     this._mapIdx  = mapIdx;
     this._modeIdx = modeIdx;
@@ -165,6 +167,13 @@ export class RoundManager {
         this._startTransition();
       } else {
         this._timer = 0; // freeze at 0 — wait for host's roundsync to advance the round
+        if (!this._nonHostWaiting) {
+          this._nonHostWaiting = true;
+          this._overlayEl.innerHTML = `
+            <div style="font-size:2.5rem;font-weight:bold">ROUND OVER!</div>
+            <div style="margin-top:12px;font-size:1rem;color:#888">Waiting for next round…</div>`;
+          this._overlayEl.style.display = "flex";
+        }
       }
     }
   }

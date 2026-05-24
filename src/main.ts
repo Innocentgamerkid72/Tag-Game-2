@@ -258,7 +258,6 @@ function handleNetMessage(msg: NetMsg) {
     // current round state so the latejoiner gets it quickly regardless of
     // peerId ordering. Only the host re-sends who is IT.
     if (isNewPeer) {
-      const allIds = [network.peerId, ...knownPeers].sort();
       if (!roundManager.isTransitioning) {
         network.sendRoundSync(
           roundManager.mapIdx,
@@ -267,7 +266,7 @@ function handleNetMessage(msg: NetMsg) {
           Math.max(0, roundManager.timer),
         );
       }
-      if (allIds[0] === network.peerId && roundManager.mode.name !== "Tomfoolery") {
+      if (timerHostPeerId() === network.peerId && roundManager.mode.name !== "Tomfoolery") {
         const itId = findCurrentItPeerId();
         if (itId) network.sendSetIt(itId, roundManager.roundId);
       }
