@@ -219,6 +219,23 @@ function applyItPeer(itPeerId: string) {
   for (const bot of roundManager.bots) (bot as unknown as Controllable).setIt(false);
 }
 
+/** When the IT player leaves or goes stale, host picks a replacement and broadcasts it. */
+function _handleItPlayerLeft(leavingId: string) {
+  if (timerHostPeerId() !== network.peerId) return;
+  if (roundManager.isTransitioning) return;
+  if (roundManager.mode.name === "Tomfoolery") return;
+  // Build the list of remaining human players (leaver already removed from remotePlayers)
+  const remaining = [network.peerId, ...remotePlayers.keys()].filter(id => id !== leavingId);
+  if (remaining.length === 0) return;
+  // Try to give IT back to whoever was IT before the leaver
+  const newItId = (prevItPeerId && remaining.includes(prevItPeerId))
+    ? prevItPeerId
+    : remaining[0];
+  prevItPeerId = leavingId;
+  applyItPeer(newItId);
+  network.sendSetIt(newItId, roundManager.roundId);
+}
+
 function handleNetMessage(msg: NetMsg) {
   if (msg.type === "state") {
     const isNewPeer = !remotePlayers.has(msg.peerId);
@@ -258,10 +275,12 @@ function handleNetMessage(msg: NetMsg) {
     return;
   }
   if (msg.type === "setit") {
-    applyItPeer(msg.itPeerId);
+    pendingSetIt = { peerId: msg.itPeerId, roundId: msg.roundId };
+    if (msg.roundId === roundManager.roundId) applyItPeer(msg.itPeerId);
     return;
   }
   if (msg.type === "tag") {
+    prevItPeerId = msg.taggerId; // tagger was IT before this tag
     const tagger = remotePlayers.get(msg.taggerId);
     const tagged  = remotePlayers.get(msg.taggedId);
     tagger?.setIt(false);
@@ -285,12 +304,14 @@ function handleNetMessage(msg: NetMsg) {
     return;
   }
   if (msg.type === "leave") {
+    const leavingRp = remotePlayers.get(msg.peerId);
+    const leaverWasIt = leavingRp?.isIt ?? false;
     knownPeers.delete(msg.peerId);
     remoteUsernames.delete(msg.peerId);
     remoteAdmins.delete(msg.peerId);
     remoteJoinedAt.delete(msg.peerId);
-    const rp = remotePlayers.get(msg.peerId);
-    if (rp) { rp.removeFromScene(scene); remotePlayers.delete(msg.peerId); }
+    if (leavingRp) { leavingRp.removeFromScene(scene); remotePlayers.delete(msg.peerId); }
+    if (leaverWasIt) _handleItPlayerLeft(msg.peerId);
   }
 }
 
@@ -400,6 +421,11 @@ const infBotPounceCooldowns  = new Map<number, number>(); // per-bot pounce cool
 const pounceHitSet           = new Set<Controllable>();   // entities already hit this pounce
 const zombieRespawnTimers    = new Map<Controllable, number>(); // zombie → seconds until respawn
 let lastRoundId = -1;
+// Tracks the most recent setit received so the new-round block can re-apply it
+// if it arrived before the game-loop clears the random mode.onStart() assignment.
+let pendingSetIt: { peerId: string; roundId: number } | null = null;
+// Who was IT before the current IT — used to restore IT if the current IT player leaves.
+let prevItPeerId: string | null = null;
 
 // ── Hunter trap-freeze timers ────────────────────────────────────────────────
 const trapFreezeTimers = new Map<Controllable, number>(); // entity → seconds until unfreeze
@@ -676,8 +702,16 @@ function gameLoop() {
 
   // Remove stale remote players (disconnected peers)
   for (const [id, rp] of remotePlayers) {
-    if (rp.isStale) { rp.removeFromScene(scene); remotePlayers.delete(id); remoteJoinedAt.delete(id); }
-    else rp.update(dt);
+    if (rp.isStale) {
+      const wasIt = rp.isIt;
+      rp.removeFromScene(scene);
+      remotePlayers.delete(id);
+      remoteJoinedAt.delete(id);
+      knownPeers.delete(id);
+      if (wasIt) _handleItPlayerLeft(id);
+    } else {
+      rp.update(dt);
+    }
   }
 
   // Local entities only (bots stay local, remote players are separate)
@@ -1239,6 +1273,9 @@ function gameLoop() {
   // This lets us override mode.onStart()'s local IT pick on the very same frame.
   if (roundManager.roundId !== lastRoundId) {
     lastRoundId = roundManager.roundId;
+    const _capturedSetIt = pendingSetIt;
+    pendingSetIt = null;
+    prevItPeerId = null;
     botGivenWeapons.clear();
     botFireTimers.clear();
     infBotCooldowns.clear();
@@ -1325,6 +1362,10 @@ function gameLoop() {
         (player as unknown as Controllable).tagImmunity = 2;
         for (const rp of remotePlayers.values()) { rp.setIt(false); rp.tagImmunity = 2; }
         for (const bot of roundManager.bots) (bot as unknown as Controllable).setIt(false);
+        // Re-apply if setit already arrived for this round before the game loop ran
+        if (_capturedSetIt && _capturedSetIt.roundId === roundManager.roundId) {
+          applyItPeer(_capturedSetIt.peerId);
+        }
       }
     }
   }
@@ -1348,11 +1389,13 @@ function gameLoop() {
       if (rp.isEliminated) continue;
       if (lp.position.distanceTo(rp.position) > 1.5) continue;
       if (lp.isIt && rp.tagImmunity <= 0) {
+        prevItPeerId = network.peerId;
         lp.setIt(false); lp.tagImmunity = 2;
         rp.setIt(true);  rp.tagImmunity = 0;
         network.sendTag(network.peerId, id);
         break;
       } else if (rp.isIt && !lp.isIt && rp.tagImmunity <= 0) {
+        prevItPeerId = id;
         rp.setIt(false); rp.tagImmunity = 2;
         lp.setIt(true);  lp.tagImmunity = 0;
         network.sendTag(id, network.peerId);
