@@ -1489,10 +1489,10 @@ function gameLoop() {
 
   // ── Haunted mode: transparency, fog, ghost glow + flashlight ─────────────
   if (isHaunted) {
-    // Dynamic fog: ghost sees farther, survivors get very short range
+    // Dynamic fog: ghost sees farther, survivors get heavy but navigable fog
     const localIsGhost = (player as unknown as Controllable).isIt;
     if (scene.fog instanceof THREE.FogExp2) {
-      scene.fog.density = localIsGhost ? 0.055 : 0.28;
+      scene.fog.density = localIsGhost ? 0.055 : 0.18;
     }
 
     // Ghost entities (IT) are 50% transparent so survivors can barely make them out
@@ -1526,14 +1526,14 @@ function gameLoop() {
     // Local flashlight (SpotLight following camera direction)
     if (!player.isEliminated) {
       if (!hauntedFlashlight) {
-        hauntedFlashlight = new THREE.SpotLight(0xfff5dd, 2.2, 24, Math.PI / 9, 0.35);
+        hauntedFlashlight = new THREE.SpotLight(0xfff8ee, 6.0, 44, Math.PI / 5, 0.25);
         scene.add(hauntedFlashlight);
         scene.add(hauntedFlashlight.target);
       }
       const flashDir = new THREE.Vector3();
       activeCamera.getWorldDirection(flashDir);
       hauntedFlashlight.position.set(player.position.x, player.position.y + 1.55, player.position.z);
-      hauntedFlashlight.target.position.copy(hauntedFlashlight.position).addScaledVector(flashDir, 12);
+      hauntedFlashlight.target.position.copy(hauntedFlashlight.position).addScaledVector(flashDir, 20);
       hauntedFlashlight.target.updateMatrixWorld();
     }
   } else {
