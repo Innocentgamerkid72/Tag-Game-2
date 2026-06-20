@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { Controllable } from "./types";
 import { makeItSprite } from "./tagUtils";
 import type { NetMsg } from "./network";
-import { buildHumanoid, setHumanoidShirtColor, HumanoidParts } from "./humanoidMesh";
+import { buildHumanoid, setHumanoidShirtColor, updateHumanoidAnimation, HumanoidParts } from "./humanoidMesh";
 
 const SHIRT_DEFAULT = 0xee7700;
 const SHIRT_IT      = 0xdd1100;
@@ -32,7 +32,8 @@ export class RemotePlayer implements Controllable {
   private readonly _itSprite: THREE.Sprite;
   private readonly _scene:    THREE.Scene;
   private readonly _targetPos = new THREE.Vector3();
-  private _lastSeen = 0;
+  private _lastSeen  = 0;
+  private _walkCycle = 0;
 
   constructor(scene: THREE.Scene, peerId: string, username: string) {
     this.peerId = peerId;
@@ -95,6 +96,10 @@ export class RemotePlayer implements Controllable {
   update(dt: number) {
     this.position.lerp(this._targetPos, Math.min(1, LERP_SPEED * dt));
     if (this.tagImmunity > 0) this.tagImmunity = Math.max(0, this.tagImmunity - dt);
+
+    const horizSpeed = Math.sqrt(this.velocity.x ** 2 + this.velocity.z ** 2);
+    this._walkCycle += horizSpeed * dt * 2.5;
+    updateHumanoidAnimation(this._humanoid, this._walkCycle, this.velocity.y > 2, horizSpeed > 10, horizSpeed);
   }
 
   /** True when no update received for >3 s — peer disconnected. */

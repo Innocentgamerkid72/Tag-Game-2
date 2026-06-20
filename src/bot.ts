@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { Teleporter } from "./testMap";
 import { makeItSprite } from "./tagUtils";
 import { GRAVITY } from "./physics";
-import { buildHumanoid, setHumanoidShirtColor, HumanoidParts } from "./humanoidMesh";
+import { buildHumanoid, setHumanoidShirtColor, updateHumanoidAnimation, HumanoidParts } from "./humanoidMesh";
 
 const MOVE_SPEED     = 7;
 const CHASE_SPEED    = 9;     // faster when "it"
@@ -57,6 +57,7 @@ export class Bot {
   private _prevPos     = new THREE.Vector3();
   private _target      : Trackable | null = null;
   private _fleeing     = false;
+  private _walkCycle   = 0;
 
   readonly name: string;
 
@@ -335,6 +336,11 @@ export class Bot {
     }
 
     if (p.y < groundY - 15) { p.set(0, groundY + 2, 0); this.velocity.set(0, 0, 0); }
+
+    // Walk animation
+    const horizSpeed = Math.sqrt(this.velocity.x ** 2 + this.velocity.z ** 2);
+    this._walkCycle += horizSpeed * dt * 2.5;
+    updateHumanoidAnimation(this._humanoid, this._walkCycle, !this.onGround, this.isIt, horizSpeed);
 
     // ── Teleporters ──────────────────────────────────────────────────────
     const feet = new THREE.Vector3(p.x, p.y + 0.1, p.z);

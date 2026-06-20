@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { InputHandler } from "./input";
 import { makeItSprite } from "./tagUtils";
 import { GRAVITY } from "./physics";
-import { buildHumanoid, setHumanoidShirtColor, HumanoidParts } from "./humanoidMesh";
+import { buildHumanoid, setHumanoidShirtColor, updateHumanoidAnimation, HumanoidParts } from "./humanoidMesh";
 
 const SHIRT_DEFAULT = 0x2266ee;
 const SHIRT_IT      = 0xdd1100;
@@ -44,6 +44,7 @@ export class Player {
   private _stamina   = SPRINT_STAMINA_MAX;
   private _sprinting = false;
   private _exhausted = false;
+  private _walkCycle = 0;
 
   private _pounceCooldown = 0;
   private _pounceTimer    = 0;
@@ -173,6 +174,7 @@ export class Player {
       }
       this._resolvePlatforms(colliders, dt);
       this._resolveWalls(walls);
+      updateHumanoidAnimation(this._humanoid, this._walkCycle, false, false, 0);
       const fp = this.mesh.position;
       if (voidBoundary !== undefined && (Math.abs(fp.x) > voidBoundary || Math.abs(fp.z) > voidBoundary)) {
         this.setEliminated(true);
@@ -266,6 +268,11 @@ export class Player {
       p.set(0, groundY + 2, 0);
       this.velocity.set(0, 0, 0);
     }
+
+    // Walk / sprint / jump animation
+    const horizSpeed = Math.sqrt(this.velocity.x ** 2 + this.velocity.z ** 2);
+    this._walkCycle += horizSpeed * dt * 2.5;
+    updateHumanoidAnimation(this._humanoid, this._walkCycle, !this.onGround, this._sprinting, horizSpeed);
   }
 
   private _resolveWalls(walls: THREE.Box3[]) {
