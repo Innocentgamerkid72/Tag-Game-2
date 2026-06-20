@@ -242,6 +242,7 @@ function handleNetMessage(msg: NetMsg) {
     knownPeers.add(msg.peerId);
     remoteUsernames.set(msg.peerId, msg.username);
     remoteJoinedAt.set(msg.peerId, msg.joinedAt);
+    if (msg.hauntedClass) remoteHauntedClasses.set(msg.peerId, msg.hauntedClass as HauntedClass);
     if (msg.isAdmin) remoteAdmins.add(msg.peerId); else remoteAdmins.delete(msg.peerId);
     let rp = remotePlayers.get(msg.peerId);
     if (!rp) {
@@ -331,6 +332,9 @@ const sprintBarFill = document.getElementById("sprint-bar")      as HTMLDivEleme
 const zombiePickerEl      = document.getElementById("zombie-picker")!;
 const zombiePickerTimerEl = document.getElementById("zombie-picker-timer")!;
 const zombiePickerBtnsEl  = document.getElementById("zombie-picker-buttons")!;
+const hauntedPickerEl      = document.getElementById("haunted-picker")!;
+const hauntedPickerTimerEl = document.getElementById("haunted-picker-timer")!;
+const hauntedPickerBtnsEl  = document.getElementById("haunted-picker-buttons")!;
 
 function _buildZombiePicker() {
   zombiePickerBtnsEl.innerHTML = ZOMBIE_CLASSES.map(cls => {
@@ -353,6 +357,52 @@ function _buildZombiePicker() {
     });
   });
 }
+function _getHauntedClass(e: Controllable): HauntedClass {
+  const lpc = player as unknown as Controllable;
+  if ((e as unknown) === (lpc as unknown)) return hauntedClasses.get(lpc) ?? "ghost";
+  for (const [id, rp] of remotePlayers) {
+    if ((e as unknown) === (rp as unknown)) return remoteHauntedClasses.get(id) ?? "ghost";
+  }
+  return "ghost"; // bots always ghost
+}
+
+function _lockInHauntedClass(cls: HauntedClass) {
+  hauntedClasses.set(player as unknown as Controllable, cls);
+  hauntedPickerEl.style.display = "none";
+}
+
+function _buildHauntedPicker() {
+  hauntedPickerBtnsEl.innerHTML = HAUNTED_CLASSES.map(cls => {
+    const s = HAUNTED_CLASS_STATS[cls];
+    return `<button data-hclass="${cls}" style="
+      padding:14px 20px;font-family:monospace;font-size:0.85rem;cursor:pointer;
+      background:rgba(0,0,0,0.75);color:${s.color};
+      border:2px solid ${s.color}44;border-radius:8px;min-width:160px;text-align:center;
+      transition:border-color 0.1s,background 0.1s;
+    ">
+      <div style="font-weight:bold;font-size:1.1rem;letter-spacing:2px;">${s.label.toUpperCase()}</div>
+      <div style="font-size:0.7rem;color:#aaa;margin-top:6px;">${s.desc}</div>
+    </button>`;
+  }).join("");
+  hauntedPickerBtnsEl.querySelectorAll("button[data-hclass]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      pendingHauntedClass = (btn as HTMLElement).dataset.hclass as HauntedClass;
+      _refreshHauntedPickerHighlight();
+      _lockInHauntedClass(pendingHauntedClass);
+    });
+  });
+}
+
+function _refreshHauntedPickerHighlight() {
+  hauntedPickerBtnsEl.querySelectorAll<HTMLButtonElement>("button[data-hclass]").forEach(btn => {
+    const cls = btn.dataset.hclass as HauntedClass;
+    const s   = HAUNTED_CLASS_STATS[cls];
+    const active = cls === pendingHauntedClass;
+    btn.style.borderColor = active ? s.color : s.color + "44";
+    btn.style.background  = active ? s.color + "22" : "rgba(0,0,0,0.75)";
+  });
+}
+
 function _refreshPickerHighlight() {
   const sel = pendingZombieClass ?? "regular";
   zombiePickerBtnsEl.querySelectorAll<HTMLButtonElement>("button[data-zclass]").forEach(btn => {
@@ -432,6 +482,20 @@ const trapFreezeTimers = new Map<Controllable, number>(); // entity → seconds 
 // ── Haunted mode lights ───────────────────────────────────────────────────────
 let hauntedItLight:   THREE.PointLight | null = null;
 let hauntedFlashlight: THREE.SpotLight | null = null;
+
+// ── Haunted class system ──────────────────────────────────────────────────────
+type HauntedClass = "ghost" | "maskkiller";
+const HAUNTED_CLASS_STATS: Record<HauntedClass, { label: string; color: string; desc: string; speedMult: number; fogDensity: number; }> = {
+  ghost:      { label: "Ghost",       color: "#cc44ff", desc: "Invisible · First-person · Backstab with Dagger", speedMult: 1.0, fogDensity: 0.055 },
+  maskkiller: { label: "Mask Killer", color: "#ff8800", desc: "Visible · 1.5× speed · Direct Sword melee",       speedMult: 1.5, fogDensity: 0.12  },
+};
+const HAUNTED_CLASSES: HauntedClass[] = ["ghost", "maskkiller"];
+
+const hauntedClasses       = new Map<Controllable, HauntedClass>(); // class per IT entity
+const remoteHauntedClasses = new Map<string, HauntedClass>();        // peerId → class for remote IT
+let pendingHauntedClass: HauntedClass | null = null;
+let hauntedPickerBuilt    = false;
+let hauntedPickerCountdown = 8;
 
 // ── Zombie class system ───────────────────────────────────────────────────────
 type ZombieClass = "regular" | "hefty" | "speedy" | "trapper";
@@ -696,7 +760,14 @@ function gameLoop() {
   // are in place when player/bot positions are resolved.
   for (const mp of map?.movingPlatforms ?? []) mp.preUpdate(dt);
 
-  player.blockJump = roundManager.mode.name === "Haunted";
+  const isHaunted       = roundManager.mode.name === "Haunted";
+  const lpcH            = player as unknown as Controllable;
+  const localHauntedCls = hauntedClasses.get(lpcH) ?? "ghost";
+  const isHauntedIt         = isHaunted && lpcH.isIt;
+  const isHauntedGhost      = isHauntedIt && localHauntedCls === "ghost";
+  const isHauntedMaskKiller = isHauntedIt && localHauntedCls === "maskkiller";
+  // Mask Killer IT can jump; ghosts and survivors cannot
+  player.blockJump = isHaunted && !isHauntedMaskKiller;
   player.update(dt, input, colliders, walls, boundary, map?.groundY ?? 0, map?.voidBoundary);
 
   // Remove stale remote players (disconnected peers)
@@ -923,32 +994,29 @@ function gameLoop() {
     fp.preUpdate(dt, allEntities);
   }
 
-  const isHaunted = roundManager.mode.name === "Haunted";
-
-  if (isHaunted) {
+  // Mask Killer IT uses third-person; ghost IT and all survivors use first-person
+  const useFirstPerson = isHaunted && !isHauntedMaskKiller;
+  if (useFirstPerson) {
     firstPersonCam.update(player.position, player.yaw, input);
-    // Hide local player mesh in first-person
     player.mesh.visible = false;
   } else {
     thirdPersonCam.update(player.position, player.yaw, input);
     player.mesh.visible = !player.isEliminated;
   }
 
-  const activeCamera = isHaunted ? firstPersonCam.camera : thirdPersonCam.camera;
+  const activeCamera = useFirstPerson ? firstPersonCam.camera : thirdPersonCam.camera;
 
   const isTomfoolery = roundManager.mode.name === "Tomfoolery";
   const isInfection  = roundManager.mode.name === "Infection";
   const isInfectionZombie  = isInfection && (player as unknown as Controllable).isIt;
   const isInfectionHealthy = isInfection && !(player as unknown as Controllable).isIt;
-  const isHauntedGhost = isHaunted && (player as unknown as Controllable).isIt;
 
-  // Weapons active for: Tomfoolery, Infection (both sides), admin-given, Hunter IT, Haunted ghost
-  const weaponsActive = isTomfoolery || isInfectionHealthy || isInfectionZombie || adminGiveUsedRound === roundManager.roundId || playerIsHunter || isHauntedGhost;
+  // Weapons active for: Tomfoolery, Infection (both sides), admin-given, Hunter IT, any Haunted IT
+  const weaponsActive = isTomfoolery || isInfectionHealthy || isInfectionZombie || adminGiveUsedRound === roundManager.roundId || playerIsHunter || isHauntedIt;
 
-  // Force zombie into bite weapon every frame
-  if (isInfectionZombie) weapon.setWeapon("bite");
-  // Force ghost into dagger every frame
-  if (isHauntedGhost) weapon.setWeapon("dagger");
+  if (isInfectionZombie)   weapon.setWeapon("bite");
+  if (isHauntedGhost)      weapon.setWeapon("dagger");
+  if (isHauntedMaskKiller) weapon.setWeapon("sword");
 
   // ── Zombie pounce / vomit (player) ───────────────────────────────────────────
   if (isInfectionZombie && !player.isEliminated) {
@@ -1065,6 +1133,11 @@ function gameLoop() {
         padding:6px 14px;font-family:monospace;font-size:13px;border-radius:6px;
         background:#cc44ff22;border:2px solid #cc44ff;color:#cc44ff;font-weight:bold;text-align:center;
       ">[LMB] Dagger — stab from BEHIND</div>`;
+    } else if (isHauntedMaskKiller) {
+      weaponHudEl.innerHTML = `<div style="
+        padding:6px 14px;font-family:monospace;font-size:13px;border-radius:6px;
+        background:#ff880022;border:2px solid #ff8800;color:#ff8800;font-weight:bold;text-align:center;
+      ">[LMB] Slash — direct melee</div>`;
     } else if (isInfectionZombie) {
       // Zombie HUD — class-aware bite + pounce/vomit slots
       const lpc2 = player as unknown as Controllable;
@@ -1205,6 +1278,9 @@ function gameLoop() {
     }
   }
 
+  // Mask Killer speed boost (applied after roundManager resets speedBoost)
+  if (isHauntedMaskKiller && !lpcH.isEliminated) lpcH.speedBoost *= HAUNTED_CLASS_STATS.maskkiller.speedMult;
+
   // ── Zombie respawn timers (infection mode) ────────────────────────────────────
   if (roundManager.mode.name === "Infection") {
     const boundary = (map?.boundary ?? 22) - 4;
@@ -1289,6 +1365,12 @@ function gameLoop() {
     pendingZombieClass = null;
     pickerBuilt = false;
     zombiePickerEl.style.display = "none";
+    hauntedClasses.clear();
+    remoteHauntedClasses.clear();
+    pendingHauntedClass = null;
+    hauntedPickerBuilt = false;
+    hauntedPickerCountdown = 8;
+    hauntedPickerEl.style.display = "none";
     if (hauntedItLight)   { scene.remove(hauntedItLight);   hauntedItLight   = null; }
     if (hauntedFlashlight){ scene.remove(hauntedFlashlight); hauntedFlashlight = null; }
     // Reset entity opacity and fog when leaving haunted mode
@@ -1420,6 +1502,7 @@ function gameLoop() {
         roundId:      roundManager.roundId,
         timeLeft:     roundManager.timer,
         joinedAt:     localJoinedAt,
+        hauntedClass: localHauntedCls,
       });
     }
   }
@@ -1487,19 +1570,29 @@ function gameLoop() {
   // Show weapon viewmodel when weapons are active and player isn't eliminated
   setViewModelWeapon(weaponsActive && !player.isEliminated ? weapon.type : null);
 
-  // ── Haunted mode: transparency, fog, ghost glow + flashlight ─────────────
+  // ── Haunted mode: class-aware transparency, fog, glow, flashlight, picker ───
   if (isHaunted) {
-    // Dynamic fog: ghost sees farther, survivors get heavy but navigable fog
-    const localIsGhost = (player as unknown as Controllable).isIt;
-    if (scene.fog instanceof THREE.FogExp2) {
-      scene.fog.density = localIsGhost ? 0.055 : 0.18;
+    // Auto-assign ghost class to IT bots (no picker for bots)
+    for (const bot of roundManager.bots) {
+      const botC = bot as unknown as Controllable;
+      if (botC.isIt && !hauntedClasses.has(botC)) hauntedClasses.set(botC, "ghost");
     }
 
-    // Ghost entities (IT) are 50% transparent so survivors can barely make them out
+    // Fog: ghost sees farthest, mask killer medium, survivors densest
+    if (scene.fog instanceof THREE.FogExp2) {
+      scene.fog.density = isHauntedIt
+        ? HAUNTED_CLASS_STATS[localHauntedCls].fogDensity
+        : 0.18;
+    }
+
+    // Transparency: ghost IT = 50% (sneaky), mask killer IT = fully visible (scary)
     for (const e of allEntities) {
       const meshObj = e as unknown as { mesh?: THREE.Object3D };
       if (!meshObj.mesh) continue;
-      const opacity = (e.isIt && !e.isEliminated) ? 0.5 : 1.0;
+      let opacity = 1.0;
+      if (e.isIt && !e.isEliminated) {
+        opacity = _getHauntedClass(e) === "ghost" ? 0.5 : 1.0;
+      }
       meshObj.mesh.traverse(child => {
         if (child instanceof THREE.Mesh) {
           const mat = child.material as THREE.MeshLambertMaterial;
@@ -1509,22 +1602,23 @@ function gameLoop() {
       });
     }
 
-    // IT red pulsing glow (visible to everyone through the fog)
+    // IT pulsing glow — purple for ghost, orange for mask killer
     const itEntity = allEntities.find(e => e.isIt && !e.isEliminated);
     if (itEntity) {
       if (!hauntedItLight) {
         hauntedItLight = new THREE.PointLight(0xff1100, 3.5, 18);
         scene.add(hauntedItLight);
       }
+      const glowColor = _getHauntedClass(itEntity) === "maskkiller" ? 0xff6600 : 0xaa00ff;
+      hauntedItLight.color.set(glowColor);
       hauntedItLight.position.set(itEntity.position.x, itEntity.position.y + 1.5, itEntity.position.z);
       hauntedItLight.intensity = 3.0 + Math.sin(performance.now() * 0.004) * 0.8;
     } else if (hauntedItLight) {
-      scene.remove(hauntedItLight);
-      hauntedItLight = null;
+      scene.remove(hauntedItLight); hauntedItLight = null;
     }
 
-    // Local flashlight (SpotLight following camera direction)
-    if (!player.isEliminated) {
+    // Flashlight: ghost IT and survivors get it; mask killer uses natural lighting
+    if (!player.isEliminated && !isHauntedMaskKiller) {
       if (!hauntedFlashlight) {
         hauntedFlashlight = new THREE.SpotLight(0xfff8ee, 6.0, 44, Math.PI / 5, 0.25);
         scene.add(hauntedFlashlight);
@@ -1535,10 +1629,32 @@ function gameLoop() {
       hauntedFlashlight.position.set(player.position.x, player.position.y + 1.55, player.position.z);
       hauntedFlashlight.target.position.copy(hauntedFlashlight.position).addScaledVector(flashDir, 20);
       hauntedFlashlight.target.updateMatrixWorld();
+    } else if (hauntedFlashlight) {
+      scene.remove(hauntedFlashlight); hauntedFlashlight = null;
+    }
+
+    // Class picker: show at round start until IT makes a choice (or timer runs out)
+    if (isHauntedIt && !hauntedClasses.has(lpcH)) {
+      hauntedPickerCountdown = Math.max(0, hauntedPickerCountdown - dt);
+      hauntedPickerTimerEl.textContent = `Choosing in ${Math.ceil(hauntedPickerCountdown)}s — default: GHOST`;
+      hauntedPickerEl.style.display = "flex";
+      if (!hauntedPickerBuilt) { hauntedPickerBuilt = true; _buildHauntedPicker(); }
+      _refreshHauntedPickerHighlight();
+      if (hauntedPickerCountdown <= 0) _lockInHauntedClass(pendingHauntedClass ?? "ghost");
+    } else {
+      hauntedPickerEl.style.display = "none";
+    }
+
+    // Status text for IT (class-aware)
+    if (isHauntedIt && hauntedClasses.has(lpcH)) {
+      const survivors = allEntities.filter(e => !e.isIt && !e.isEliminated).length;
+      const clsStats  = HAUNTED_CLASS_STATS[localHauntedCls];
+      statusEl.textContent = `[${clsStats.label.toUpperCase()}] Eliminate ${survivors} survivor${survivors !== 1 ? "s" : ""}!`;
     }
   } else {
     if (hauntedItLight)   { scene.remove(hauntedItLight);   hauntedItLight   = null; }
     if (hauntedFlashlight){ scene.remove(hauntedFlashlight); hauntedFlashlight = null; }
+    hauntedPickerEl.style.display = "none";
   }
 
   renderer.autoClear = true;

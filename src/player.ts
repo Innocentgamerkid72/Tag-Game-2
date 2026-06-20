@@ -2,6 +2,11 @@ import * as THREE from "three";
 import { InputHandler } from "./input";
 import { makeItSprite } from "./tagUtils";
 import { GRAVITY } from "./physics";
+import { buildHumanoid, setHumanoidShirtColor, HumanoidParts } from "./humanoidMesh";
+
+const SHIRT_DEFAULT = 0x2266ee;
+const SHIRT_IT      = 0xdd1100;
+const SHIRT_FROZEN  = 0x88ddff;
 
 const MOVE_SPEED         = 8;
 const SPRINT_SPEED       = 13.5;   // ~1.7× walk speed
@@ -65,38 +70,16 @@ export class Player {
     this.knockbackTimer  = dur;
   }
 
-  private _body: THREE.Mesh;
-  private _head: THREE.Mesh;
+  private _humanoid: HumanoidParts;
   private _itSprite: THREE.Sprite;
   private _nameSprite: THREE.Sprite | null = null;
 
   constructor(scene: THREE.Scene) {
     this.mesh = new THREE.Group();
 
-    // Body
-    const bodyGeo = new THREE.CapsuleGeometry(PLAYER_RADIUS, PLAYER_HEIGHT - PLAYER_RADIUS * 2, 4, 8);
-    const mat = new THREE.MeshLambertMaterial({ color: 0x4488ff });
-    this._body = new THREE.Mesh(bodyGeo, mat);
-    this._body.position.y = PLAYER_HEIGHT / 2;
-    this._body.castShadow = true;
-    this.mesh.add(this._body);
+    this._humanoid = buildHumanoid(SHIRT_DEFAULT);
+    this.mesh.add(this._humanoid.group);
 
-    // Head direction indicator
-    const headGeo = new THREE.SphereGeometry(0.2, 8, 8);
-    const headMat = new THREE.MeshLambertMaterial({ color: 0xffcc88 });
-    this._head = new THREE.Mesh(headGeo, headMat);
-    this._head.position.set(0, PLAYER_HEIGHT - 0.1, 0);
-    this.mesh.add(this._head);
-
-    // Nose (shows facing direction)
-    const noseGeo = new THREE.ConeGeometry(0.07, 0.3, 6);
-    const noseMat = new THREE.MeshLambertMaterial({ color: 0xff4444 });
-    const nose = new THREE.Mesh(noseGeo, noseMat);
-    nose.rotation.x = -Math.PI / 2;
-    nose.position.set(0, PLAYER_HEIGHT - 0.1, -0.35);
-    this.mesh.add(nose);
-
-    // "IT" crown sprite (hidden until this player is it)
     this._itSprite = makeItSprite();
     this._itSprite.position.set(0, PLAYER_HEIGHT + 0.7, 0);
     this._itSprite.visible = false;
@@ -116,7 +99,7 @@ export class Player {
     }
     this.isIt = it;
     this._itSprite.visible = it;
-    (this._body.material as THREE.MeshLambertMaterial).color.set(it ? 0xff2200 : 0x4488ff);
+    setHumanoidShirtColor(this._humanoid, it ? SHIRT_IT : SHIRT_DEFAULT);
     if (it) this.tagImmunity = 0;
     else    this.tagImmunity = 2;
   }
@@ -124,12 +107,12 @@ export class Player {
   setFrozen(frozen: boolean) {
     this.isFrozen = frozen;
     if (frozen) {
-      (this._body.material as THREE.MeshLambertMaterial).color.set(0x88ddff);
+      setHumanoidShirtColor(this._humanoid, SHIRT_FROZEN);
       this.velocity.x = 0;
       this.velocity.z = 0;
       // Leave velocity.y intact so the player keeps falling if mid-air
     } else {
-      (this._body.material as THREE.MeshLambertMaterial).color.set(this.isIt ? 0xff2200 : 0x4488ff);
+      setHumanoidShirtColor(this._humanoid, this.isIt ? SHIRT_IT : SHIRT_DEFAULT);
     }
   }
 

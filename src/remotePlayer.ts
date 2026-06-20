@@ -2,9 +2,13 @@ import * as THREE from "three";
 import { Controllable } from "./types";
 import { makeItSprite } from "./tagUtils";
 import type { NetMsg } from "./network";
+import { buildHumanoid, setHumanoidShirtColor, HumanoidParts } from "./humanoidMesh";
+
+const SHIRT_DEFAULT = 0xee7700;
+const SHIRT_IT      = 0xdd1100;
+const SHIRT_FROZEN  = 0x88ddff;
 
 const PLAYER_HEIGHT = 1.8;
-const PLAYER_RADIUS = 0.4;
 const LERP_SPEED    = 12; // lerp factor (higher = snappier)
 
 export class RemotePlayer implements Controllable {
@@ -24,7 +28,7 @@ export class RemotePlayer implements Controllable {
   readonly peerId: string;
 
   private readonly _mesh:     THREE.Group;
-  private readonly _body:     THREE.Mesh;
+  private readonly _humanoid: HumanoidParts;
   private readonly _itSprite: THREE.Sprite;
   private readonly _scene:    THREE.Scene;
   private readonly _targetPos = new THREE.Vector3();
@@ -36,24 +40,9 @@ export class RemotePlayer implements Controllable {
 
     this._mesh = new THREE.Group();
 
-    // Body — orange to distinguish from local player (blue) and bots
-    this._body = new THREE.Mesh(
-      new THREE.CapsuleGeometry(PLAYER_RADIUS, PLAYER_HEIGHT - PLAYER_RADIUS * 2, 4, 8),
-      new THREE.MeshLambertMaterial({ color: 0xff8800 }),
-    );
-    this._body.position.y = PLAYER_HEIGHT / 2;
-    this._body.castShadow = true;
-    this._mesh.add(this._body);
+    this._humanoid = buildHumanoid(SHIRT_DEFAULT);
+    this._mesh.add(this._humanoid.group);
 
-    // Head
-    const head = new THREE.Mesh(
-      new THREE.SphereGeometry(0.2, 8, 8),
-      new THREE.MeshLambertMaterial({ color: 0xffcc88 }),
-    );
-    head.position.set(0, PLAYER_HEIGHT - 0.1, 0);
-    this._mesh.add(head);
-
-    // IT badge
     this._itSprite = makeItSprite();
     this._itSprite.position.set(0, PLAYER_HEIGHT + 0.7, 0);
     this._itSprite.visible = false;
@@ -72,15 +61,13 @@ export class RemotePlayer implements Controllable {
   setIt(v: boolean) {
     this.isIt = v;
     this._itSprite.visible = v;
-    (this._body.material as THREE.MeshLambertMaterial).color.set(v ? 0xff2200 : 0xff8800);
+    setHumanoidShirtColor(this._humanoid, v ? SHIRT_IT : SHIRT_DEFAULT);
     this.tagImmunity = v ? 0 : 2;
   }
 
   setFrozen(frozen: boolean) {
     this.isFrozen = frozen;
-    (this._body.material as THREE.MeshLambertMaterial).color.set(
-      frozen ? 0x88ddff : (this.isIt ? 0xff2200 : 0xff8800),
-    );
+    setHumanoidShirtColor(this._humanoid, frozen ? SHIRT_FROZEN : (this.isIt ? SHIRT_IT : SHIRT_DEFAULT));
   }
 
   setEliminated(v: boolean) {

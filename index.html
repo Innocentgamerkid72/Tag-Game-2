@@ -193,7 +193,7 @@
       color:rgba(255,255,255,0.5); text-shadow:0 0 4px #000;
       background:rgba(0,0,0,0.38); border:1px solid rgba(255,255,255,0.12);
       border-radius:4px; padding:2px 7px; pointer-events:none; z-index:10;
-    ">UPDATE 12 &middot; Timer Sync Fix</div>
+    ">UPDATE 14 &middot; Humanoid Player Models</div>
     <div id="round-timer">60</div>
     <div id="mode-status"></div>
     <div id="coords"></div>
@@ -238,6 +238,21 @@
       position:fixed; bottom:48px; left:50%; transform:translateX(-50%);
       display:flex; gap:8px; pointer-events:none; z-index:10;
     "></div>
+    <!-- Haunted class picker (shown at round start for the IT player) -->
+    <div id="haunted-picker" style="
+      display:none; position:fixed; inset:0; z-index:80;
+      background:rgba(0,0,0,0.72);
+      flex-direction:column; align-items:center; justify-content:center;
+      font-family:monospace; pointer-events:none;
+    ">
+      <div style="pointer-events:auto; text-align:center; max-width:560px; width:100%; padding:0 14px;">
+        <div style="color:#ff8800;font-size:1.5rem;font-weight:bold;letter-spacing:2px;text-shadow:0 0 10px #ff5500;">
+          CHOOSE YOUR KILLER TYPE
+        </div>
+        <div id="haunted-picker-timer" style="color:#ffaa44;font-size:0.9rem;margin:6px 0 16px;"></div>
+        <div id="haunted-picker-buttons" style="display:flex;flex-wrap:wrap;gap:14px;justify-content:center;"></div>
+      </div>
+    </div>
     <!-- Zombie class picker (shown during infection respawn countdown) -->
     <div id="zombie-picker" style="
       display:none; position:fixed; inset:0; z-index:80;

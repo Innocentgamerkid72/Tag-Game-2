@@ -6,7 +6,7 @@ export type NetMsg =
       x: number; y: number; z: number;
       vx: number; vy: number; vz: number;
       yaw: number; isFrozen: boolean; isEliminated: boolean;
-      roundId: number; timeLeft: number; joinedAt: number; }
+      roundId: number; timeLeft: number; joinedAt: number; hauntedClass?: string; }
   | { type: "tag";   peerId: string; taggerId: string; taggedId: string; }
   | { type: "setit"; peerId: string; itPeerId: string; roundId: number; }
   | { type: "leave"; peerId: string; }

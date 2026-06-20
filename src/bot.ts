@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { Teleporter } from "./testMap";
 import { makeItSprite } from "./tagUtils";
 import { GRAVITY } from "./physics";
+import { buildHumanoid, setHumanoidShirtColor, HumanoidParts } from "./humanoidMesh";
 
 const MOVE_SPEED     = 7;
 const CHASE_SPEED    = 9;     // faster when "it"
@@ -46,9 +47,9 @@ export class Bot {
   hp    = 100;
   lives = 3;
 
-  private _baseColor  : number;
-  private _body        : THREE.Mesh;
-  private _itSprite    : THREE.Sprite;
+  private _baseColor : number;
+  private _humanoid  : HumanoidParts;
+  private _itSprite  : THREE.Sprite;
   private _waypoint    = new THREE.Vector3();
   private _wpTimer     = 0;
   private _boundary    = 22;
@@ -67,31 +68,8 @@ export class Bot {
 
     this.mesh = new THREE.Group();
 
-    // Body
-    this._body = new THREE.Mesh(
-      new THREE.CapsuleGeometry(PLAYER_RADIUS, PLAYER_HEIGHT - PLAYER_RADIUS * 2, 4, 8),
-      new THREE.MeshLambertMaterial({ color: this._baseColor })
-    );
-    this._body.position.y = PLAYER_HEIGHT / 2;
-    this._body.castShadow = true;
-    this.mesh.add(this._body);
-
-    // Head
-    const head = new THREE.Mesh(
-      new THREE.SphereGeometry(0.2, 8, 8),
-      new THREE.MeshLambertMaterial({ color: 0xffcc88 })
-    );
-    head.position.set(0, PLAYER_HEIGHT - 0.1, 0);
-    this.mesh.add(head);
-
-    // Nose
-    const nose = new THREE.Mesh(
-      new THREE.ConeGeometry(0.07, 0.3, 6),
-      new THREE.MeshLambertMaterial({ color: 0xff4444 })
-    );
-    nose.rotation.x = -Math.PI / 2;
-    nose.position.set(0, PLAYER_HEIGHT - 0.1, -0.35);
-    this.mesh.add(nose);
+    this._humanoid = buildHumanoid(this._baseColor);
+    this.mesh.add(this._humanoid.group);
 
     // "IT" badge (higher so it doesn't overlap the name tag)
     this._itSprite = makeItSprite();
@@ -122,20 +100,18 @@ export class Bot {
     }
     this.isIt = it;
     this._itSprite.visible = it;
-    (this._body.material as THREE.MeshLambertMaterial).color.set(
-      it ? 0xff2200 : this._baseColor
-    );
+    setHumanoidShirtColor(this._humanoid, it ? 0xdd1100 : this._baseColor);
     this.tagImmunity = it ? 0 : 2;
   }
 
   setFrozen(frozen: boolean) {
     this.isFrozen = frozen;
     if (frozen) {
-      (this._body.material as THREE.MeshLambertMaterial).color.set(0x88ddff);
+      setHumanoidShirtColor(this._humanoid, 0x88ddff);
       this.velocity.x = 0;
       this.velocity.z = 0;
     } else {
-      (this._body.material as THREE.MeshLambertMaterial).color.set(this.isIt ? 0xff2200 : this._baseColor);
+      setHumanoidShirtColor(this._humanoid, this.isIt ? 0xdd1100 : this._baseColor);
     }
   }
 
