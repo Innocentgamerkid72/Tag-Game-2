@@ -21,28 +21,34 @@ import { setViewModelWeapon, renderViewModel } from "./weaponViewModel";
 // ── Renderer ──────────────────────────────────────────────────────────────────
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
 document.body.appendChild(renderer.domElement);
 
 // ── Scene ─────────────────────────────────────────────────────────────────────
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x87ceeb);
-scene.fog = new THREE.Fog(0x87ceeb, 50, 120);
+scene.background = new THREE.Color(0x7ec8e3);
+scene.fog = new THREE.FogExp2(0x7ec8e3, 0.0065);
 
 // ── Lighting ──────────────────────────────────────────────────────────────────
-scene.add(new THREE.AmbientLight(0xffffff, 1.0));
+// Hemisphere light: soft sky blue from above, warm ground bounce from below
+scene.add(new THREE.HemisphereLight(0xb8d8ff, 0x6e8c3a, 0.8));
 
-const sun = new THREE.DirectionalLight(0xffffff, 1.5);
-sun.position.set(20, 40, 20);
+const sun = new THREE.DirectionalLight(0xfff5e0, 2.0);
+sun.position.set(30, 55, 25);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
 sun.shadow.camera.near = 0.5;
-sun.shadow.camera.far = 120;
-sun.shadow.camera.left = -50;
-sun.shadow.camera.right = 50;
-sun.shadow.camera.top = 50;
-sun.shadow.camera.bottom = -50;
+sun.shadow.camera.far = 140;
+sun.shadow.camera.left = -55;
+sun.shadow.camera.right = 55;
+sun.shadow.camera.top = 55;
+sun.shadow.camera.bottom = -55;
+sun.shadow.bias = -0.0004;
 scene.add(sun);
 
 // ── Player & Camera ───────────────────────────────────────────────────────────
@@ -1379,8 +1385,8 @@ function gameLoop() {
       if (!meshObj.mesh) continue;
       meshObj.mesh.traverse(child => {
         if (child instanceof THREE.Mesh) {
-          (child.material as THREE.MeshLambertMaterial).transparent = false;
-          (child.material as THREE.MeshLambertMaterial).opacity = 1.0;
+          (child.material as THREE.Material).transparent = false;
+          (child.material as THREE.Material).opacity = 1.0;
         }
       });
     }
@@ -1595,7 +1601,7 @@ function gameLoop() {
       }
       meshObj.mesh.traverse(child => {
         if (child instanceof THREE.Mesh) {
-          const mat = child.material as THREE.MeshLambertMaterial;
+          const mat = child.material as THREE.Material;
           mat.transparent = opacity < 1;
           mat.opacity = opacity;
         }

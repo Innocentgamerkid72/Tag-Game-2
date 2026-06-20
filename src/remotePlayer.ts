@@ -99,7 +99,7 @@ export class RemotePlayer implements Controllable {
 
     const horizSpeed = Math.sqrt(this.velocity.x ** 2 + this.velocity.z ** 2);
     this._walkCycle += horizSpeed * dt * 2.5;
-    updateHumanoidAnimation(this._humanoid, this._walkCycle, this.velocity.y > 2, horizSpeed > 10, horizSpeed);
+    updateHumanoidAnimation(this._humanoid, this._walkCycle, this.velocity.y > 2, horizSpeed > 10, horizSpeed, dt);
   }
 
   /** True when no update received for >3 s — peer disconnected. */

@@ -174,7 +174,7 @@ export class Player {
       }
       this._resolvePlatforms(colliders, dt);
       this._resolveWalls(walls);
-      updateHumanoidAnimation(this._humanoid, this._walkCycle, false, false, 0);
+      updateHumanoidAnimation(this._humanoid, this._walkCycle, false, false, 0, dt);
       const fp = this.mesh.position;
       if (voidBoundary !== undefined && (Math.abs(fp.x) > voidBoundary || Math.abs(fp.z) > voidBoundary)) {
         this.setEliminated(true);
@@ -272,7 +272,7 @@ export class Player {
     // Walk / sprint / jump animation
     const horizSpeed = Math.sqrt(this.velocity.x ** 2 + this.velocity.z ** 2);
     this._walkCycle += horizSpeed * dt * 2.5;
-    updateHumanoidAnimation(this._humanoid, this._walkCycle, !this.onGround, this._sprinting, horizSpeed);
+    updateHumanoidAnimation(this._humanoid, this._walkCycle, !this.onGround, this._sprinting, horizSpeed, dt);
   }
 
   private _resolveWalls(walls: THREE.Box3[]) {

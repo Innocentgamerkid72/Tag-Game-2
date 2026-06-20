@@ -340,7 +340,7 @@ export class Bot {
     // Walk animation
     const horizSpeed = Math.sqrt(this.velocity.x ** 2 + this.velocity.z ** 2);
     this._walkCycle += horizSpeed * dt * 2.5;
-    updateHumanoidAnimation(this._humanoid, this._walkCycle, !this.onGround, this.isIt, horizSpeed);
+    updateHumanoidAnimation(this._humanoid, this._walkCycle, !this.onGround, this.isIt, horizSpeed, dt);
 
     // ── Teleporters ──────────────────────────────────────────────────────
     const feet = new THREE.Vector3(p.x, p.y + 0.1, p.z);
