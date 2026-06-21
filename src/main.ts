@@ -746,28 +746,34 @@ function _botBite(biter: Controllable, _cls: ZombieClass, target: Controllable, 
 }
 
 // ── Minimap ───────────────────────────────────────────────────────────────────
-function drawMinimap(boundary: number) {
+function drawMinimap(
+  boundary:  number,
+  colliders: THREE.Box3[],
+  walls:     THREE.Box3[],
+  modeName:  string,
+) {
   const W   = minimapCanvas.width;
   const H   = minimapCanvas.height;
   const ctx = minimapCtx;
-  // 88% of canvas width covers the map boundary in each direction
   const scale = (W * 0.88) / (boundary * 2);
-  const ox = W / 2;   // canvas origin = world (0,0)
+  const ox = W / 2;
   const oy = H / 2;
 
-  ctx.clearRect(0, 0, W, H);
+  const toX = (x: number) => ox + x * scale;
+  const toZ = (z: number) => oy + z * scale;
 
-  // Background
+  // ── Background ──
+  ctx.clearRect(0, 0, W, H);
   ctx.fillStyle = "rgba(0,0,0,0.72)";
   ctx.fillRect(0, 0, W, H);
 
-  // "MAP" label
+  // ── "MAP" label ──
   ctx.fillStyle = "rgba(255,255,255,0.45)";
   ctx.font      = "bold 9px monospace";
   ctx.textAlign = "center";
   ctx.fillText("MAP", W / 2, 11);
 
-  // Map boundary square
+  // ── Map boundary square ──
   const hw = boundary * scale;
   ctx.strokeStyle = "rgba(255,255,255,0.18)";
   ctx.lineWidth   = 1;
@@ -781,38 +787,65 @@ function drawMinimap(boundary: number) {
   ctx.moveTo(ox - hw, oy); ctx.lineTo(ox + hw, oy);
   ctx.stroke();
 
-  const wx = (x: number) => ox + x * scale;
-  const wz = (z: number) => oy + z * scale;
+  // ── Structures (walls + platforms) — shown in every mode ──
+  const drawBox = (box: THREE.Box3, fill: string, stroke: string) => {
+    const sx = box.max.x - box.min.x;
+    const sz = box.max.z - box.min.z;
+    // Skip oversized boxes that would swamp the minimap (e.g. invisible border walls)
+    if (sx > boundary * 1.5 || sz > boundary * 1.5) return;
+    const rx = toX(box.min.x);
+    const ry = toZ(box.min.z);
+    const rw = sx * scale;
+    const rh = sz * scale;
+    ctx.fillStyle   = fill;
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth   = 0.5;
+    ctx.fillRect(rx, ry, rw, rh);
+    ctx.strokeRect(rx, ry, rw, rh);
+  };
 
-  // Bots
-  for (const bot of roundManager.bots) {
-    if (bot.isEliminated) continue;
-    const bx = wx(bot.position.x), by = wz(bot.position.z);
-    ctx.fillStyle   = bot.isIt ? "#ff3300" : "#999999";
-    ctx.strokeStyle = bot.isIt ? "#ff8800" : "transparent";
-    ctx.lineWidth   = 1;
-    ctx.beginPath();
-    ctx.arc(bx, by, bot.isIt ? 4 : 3, 0, Math.PI * 2);
-    ctx.fill();
-    if (bot.isIt) ctx.stroke();
+  for (const box of colliders) drawBox(box, "rgba(160,130,85,0.45)", "rgba(200,165,100,0.55)");
+  for (const box of walls)     drawBox(box, "rgba(115,100,80,0.55)", "rgba(145,125,100,0.65)");
+
+  // ── Entities — behaviour depends on mode ──
+  const isTomfoolery = modeName === "Tomfoolery";
+  const isHaunted    = modeName === "Haunted";
+  // Normal modes: no player dots. Tomfoolery: all players. Haunted: non-IT only.
+  const showPlayers  = isTomfoolery || isHaunted;
+
+  if (showPlayers) {
+    // Bots
+    for (const bot of roundManager.bots) {
+      if (bot.isEliminated) continue;
+      if (isHaunted && bot.isIt) continue;           // hide ghost in Haunted
+      const bx = toX(bot.position.x), by = toZ(bot.position.z);
+      ctx.fillStyle   = bot.isIt ? "#ff3300" : "#999999";
+      ctx.strokeStyle = bot.isIt ? "#ff8800" : "transparent";
+      ctx.lineWidth   = 1;
+      ctx.beginPath();
+      ctx.arc(bx, by, bot.isIt ? 4 : 3, 0, Math.PI * 2);
+      ctx.fill();
+      if (bot.isIt) ctx.stroke();
+    }
+
+    // Remote human players
+    for (const rp of remotePlayers.values()) {
+      if (rp.isEliminated) continue;
+      if (isHaunted && rp.isIt) continue;            // hide ghost in Haunted
+      const rx = toX(rp.position.x), ry = toZ(rp.position.z);
+      ctx.fillStyle   = rp.isIt ? "#ff3300" : "#ff8800";
+      ctx.strokeStyle = rp.isIt ? "#ff8800" : "transparent";
+      ctx.lineWidth   = 1;
+      ctx.beginPath();
+      ctx.arc(rx, ry, rp.isIt ? 4.5 : 3.5, 0, Math.PI * 2);
+      ctx.fill();
+      if (rp.isIt) ctx.stroke();
+    }
   }
 
-  // Remote human players
-  for (const rp of remotePlayers.values()) {
-    if (rp.isEliminated) continue;
-    const rx = wx(rp.position.x), ry = wz(rp.position.z);
-    ctx.fillStyle   = rp.isIt ? "#ff3300" : "#ff8800";
-    ctx.strokeStyle = rp.isIt ? "#ff8800" : "transparent";
-    ctx.lineWidth   = 1;
-    ctx.beginPath();
-    ctx.arc(rx, ry, rp.isIt ? 4.5 : 3.5, 0, Math.PI * 2);
-    ctx.fill();
-    if (rp.isIt) ctx.stroke();
-  }
-
-  // Local player — white arrow pointing in the facing direction
+  // Local player arrow — always shown (you always need to know where you are)
   if (!player.isEliminated) {
-    const px = wx(player.position.x), py = wz(player.position.z);
+    const px = toX(player.position.x), py = toZ(player.position.z);
     ctx.save();
     ctx.translate(px, py);
     ctx.rotate(-player.yaw);
@@ -820,7 +853,7 @@ function drawMinimap(boundary: number) {
     ctx.strokeStyle = player.isIt ? "#ffaa00" : "#aaccff";
     ctx.lineWidth   = 0.8;
     ctx.beginPath();
-    ctx.moveTo(0,    -7);   // tip (forward)
+    ctx.moveTo(0,   -7);
     ctx.lineTo(-4,  4.5);
     ctx.lineTo( 4,  4.5);
     ctx.closePath();
@@ -1753,7 +1786,7 @@ function gameLoop() {
     hauntedPickerEl.style.display = "none";
   }
 
-  drawMinimap(boundary);
+  drawMinimap(boundary, colliders, walls, roundManager.mode.name);
 
   renderer.autoClear = true;
   renderer.render(scene, activeCamera);
