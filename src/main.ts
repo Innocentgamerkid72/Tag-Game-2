@@ -341,6 +341,10 @@ const zombiePickerBtnsEl  = document.getElementById("zombie-picker-buttons")!;
 const hauntedPickerEl      = document.getElementById("haunted-picker")!;
 const hauntedPickerTimerEl = document.getElementById("haunted-picker-timer")!;
 const hauntedPickerBtnsEl  = document.getElementById("haunted-picker-buttons")!;
+const minimapCanvas = document.getElementById("minimap") as HTMLCanvasElement;
+const minimapCtx    = minimapCanvas.getContext("2d")!;
+minimapCanvas.width  = 150;
+minimapCanvas.height = 150;
 
 function _buildZombiePicker() {
   zombiePickerBtnsEl.innerHTML = ZOMBIE_CLASSES.map(cls => {
@@ -643,7 +647,8 @@ adminBtn.addEventListener("click", () => {
 function startGame(nickname: string) {
   localJoinedAt = Date.now();
   localUsername = nickname;
-  loginOverlay.style.display = "none";
+  loginOverlay.style.display  = "none";
+  minimapCanvas.style.display = "block";
   gameStarted = true;
   player.setName(nickname);
   const lower = nickname.toLowerCase();
@@ -738,6 +743,91 @@ function _botBite(biter: Controllable, _cls: ZombieClass, target: Controllable, 
   target.velocity.z    += toTarget.z * 7;
   target.velocity.y     = Math.max(target.velocity.y, 4);
   target.knockbackTimer = 0.3;
+}
+
+// ── Minimap ───────────────────────────────────────────────────────────────────
+function drawMinimap(boundary: number) {
+  const W   = minimapCanvas.width;
+  const H   = minimapCanvas.height;
+  const ctx = minimapCtx;
+  // 88% of canvas width covers the map boundary in each direction
+  const scale = (W * 0.88) / (boundary * 2);
+  const ox = W / 2;   // canvas origin = world (0,0)
+  const oy = H / 2;
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Background
+  ctx.fillStyle = "rgba(0,0,0,0.72)";
+  ctx.fillRect(0, 0, W, H);
+
+  // "MAP" label
+  ctx.fillStyle = "rgba(255,255,255,0.45)";
+  ctx.font      = "bold 9px monospace";
+  ctx.textAlign = "center";
+  ctx.fillText("MAP", W / 2, 11);
+
+  // Map boundary square
+  const hw = boundary * scale;
+  ctx.strokeStyle = "rgba(255,255,255,0.18)";
+  ctx.lineWidth   = 1;
+  ctx.strokeRect(ox - hw, oy - hw, hw * 2, hw * 2);
+
+  // Subtle centre crosshair
+  ctx.strokeStyle = "rgba(255,255,255,0.06)";
+  ctx.lineWidth   = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(ox, oy - hw); ctx.lineTo(ox, oy + hw);
+  ctx.moveTo(ox - hw, oy); ctx.lineTo(ox + hw, oy);
+  ctx.stroke();
+
+  const wx = (x: number) => ox + x * scale;
+  const wz = (z: number) => oy + z * scale;
+
+  // Bots
+  for (const bot of roundManager.bots) {
+    if (bot.isEliminated) continue;
+    const bx = wx(bot.position.x), by = wz(bot.position.z);
+    ctx.fillStyle   = bot.isIt ? "#ff3300" : "#999999";
+    ctx.strokeStyle = bot.isIt ? "#ff8800" : "transparent";
+    ctx.lineWidth   = 1;
+    ctx.beginPath();
+    ctx.arc(bx, by, bot.isIt ? 4 : 3, 0, Math.PI * 2);
+    ctx.fill();
+    if (bot.isIt) ctx.stroke();
+  }
+
+  // Remote human players
+  for (const rp of remotePlayers.values()) {
+    if (rp.isEliminated) continue;
+    const rx = wx(rp.position.x), ry = wz(rp.position.z);
+    ctx.fillStyle   = rp.isIt ? "#ff3300" : "#ff8800";
+    ctx.strokeStyle = rp.isIt ? "#ff8800" : "transparent";
+    ctx.lineWidth   = 1;
+    ctx.beginPath();
+    ctx.arc(rx, ry, rp.isIt ? 4.5 : 3.5, 0, Math.PI * 2);
+    ctx.fill();
+    if (rp.isIt) ctx.stroke();
+  }
+
+  // Local player — white arrow pointing in the facing direction
+  if (!player.isEliminated) {
+    const px = wx(player.position.x), py = wz(player.position.z);
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.rotate(-player.yaw);
+    ctx.fillStyle   = player.isIt ? "#ff4400" : "#ffffff";
+    ctx.strokeStyle = player.isIt ? "#ffaa00" : "#aaccff";
+    ctx.lineWidth   = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(0,    -7);   // tip (forward)
+    ctx.lineTo(-4,  4.5);
+    ctx.lineTo( 4,  4.5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
 }
 
 // ── Game Loop ─────────────────────────────────────────────────────────────────
@@ -1662,6 +1752,8 @@ function gameLoop() {
     if (hauntedFlashlight){ scene.remove(hauntedFlashlight); hauntedFlashlight = null; }
     hauntedPickerEl.style.display = "none";
   }
+
+  drawMinimap(boundary);
 
   renderer.autoClear = true;
   renderer.render(scene, activeCamera);

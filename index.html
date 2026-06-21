@@ -193,7 +193,7 @@
       color:rgba(255,255,255,0.5); text-shadow:0 0 4px #000;
       background:rgba(0,0,0,0.38); border:1px solid rgba(255,255,255,0.12);
       border-radius:4px; padding:2px 7px; pointer-events:none; z-index:10;
-    ">UPDATE 16 &middot; Realistic Lighting, PBR Materials &amp; Smooth Animations</div>
+    ">UPDATE 17 &middot; Minimap</div>
     <div id="round-timer">60</div>
     <div id="mode-status"></div>
     <div id="coords"></div>
@@ -201,6 +201,13 @@
     <div id="flash-overlay" style="position:fixed;inset:0;background:#ffffff;opacity:0;pointer-events:none;z-index:200;transition:opacity 0.05s;"></div>
     <button id="admin-btn" style="display:none;position:fixed;top:16px;right:16px;z-index:150;padding:5px 12px;font-family:monospace;font-size:0.75rem;background:#2a2a00;color:#ffcc00;border:2px solid #ffcc00;border-radius:4px;cursor:pointer;letter-spacing:1px;text-shadow:0 0 6px #ffcc00;">⚙ ADMIN</button>
     <div id="admin-panel" style="display:none;position:fixed;top:46px;right:16px;z-index:150;background:#0d1117;border:1px solid #444;border-radius:8px;padding:14px 18px;font-family:monospace;color:#ccc;min-width:220px;"></div>
+    <!-- Minimap -->
+    <canvas id="minimap" style="
+      display:none; position:fixed; top:56px; right:16px;
+      width:150px; height:150px; border-radius:8px;
+      border:1px solid rgba(255,255,255,0.18);
+      pointer-events:none; z-index:10;
+    "></canvas>
     <div id="net-status" style="position:fixed;top:16px;left:50%;transform:translateX(-50%) translateY(40px);font-family:monospace;font-size:11px;color:#aaa;text-shadow:0 0 4px #000;pointer-events:none;z-index:10;"></div>
     <div id="controls">WASD — Move &nbsp;|&nbsp; Space — Jump &nbsp;|&nbsp; Mouse — Camera &nbsp;|&nbsp; 1-4 — Weapon &nbsp;|&nbsp; LClick — Fire</div>
     <div id="tmf-hud" style="
