@@ -476,6 +476,8 @@ let adminGiveUsedRound = -1;
 const botGivenWeapons  = new Map<number, WeaponType>();
 const botFireTimers    = new Map<number, number>();
 const infBotCooldowns        = new Map<number, number>(); // per-bot weapon cooldown in infection mode
+const tmfBotCooldowns        = new Map<number, number>(); // per-bot weapon cooldown in tomfoolery mode
+const hauntedBotCooldowns    = new Map<number, number>(); // per-bot weapon cooldown in haunted mode
 const infBotPounceCooldowns  = new Map<number, number>(); // per-bot pounce cooldown
 const pounceHitSet           = new Set<Controllable>();   // entities already hit this pounce
 const zombieRespawnTimers    = new Map<Controllable, number>(); // zombie → seconds until respawn
@@ -1053,6 +1055,93 @@ function gameLoop() {
     }
   }
 
+  // ── Tomfoolery bot weapon AI ──────────────────────────────────────────────────
+  if (roundManager.mode.name === "Tomfoolery") {
+    for (let i = 0; i < roundManager.bots.length; i++) {
+      const botC   = roundManager.bots[i] as unknown as Controllable;
+      if (botC.isEliminated) continue;
+      const cd = tmfBotCooldowns.get(i) ?? 0;
+      if (cd > 0) { tmfBotCooldowns.set(i, cd - dt); continue; }
+
+      // Find nearest living opponent (all-vs-all)
+      let nearest: Controllable | null = null;
+      let nearestDist = Infinity;
+      for (const e of allEntities) {
+        if (e === botC || e.isEliminated) continue;
+        const d = botC.position.distanceTo(e.position);
+        if (d < nearestDist) { nearestDist = d; nearest = e; }
+      }
+      if (!nearest) continue;
+
+      const weapon  = (roundManager.bots[i] as { weapon?: import("./weapon").WeaponSystem }).weapon;
+      if (!weapon) continue;
+      const origin  = botC.position.clone().add(new THREE.Vector3(0, 1.1, 0));
+
+      if (nearestDist < 3.5) {
+        // Melee sword — pure knockback in Tomfoolery
+        const toTarget = nearest.position.clone().sub(botC.position).setY(0).normalize();
+        nearest.velocity.x    += toTarget.x * 22;
+        nearest.velocity.z    += toTarget.z * 22;
+        nearest.velocity.y     = Math.max(nearest.velocity.y, 10);
+        nearest.knockbackTimer = 0.5;
+        tmfBotCooldowns.set(i, DEFS.sword.cooldown);
+      } else if (nearestDist < 22) {
+        // Rocket — arcing shot toward target
+        const dir = addAimNoise(aimWithLead(origin, nearest, DEFS.rocket.speed), botShotAngle() * 0.8);
+        weapon.fireAs(scene, origin.clone().addScaledVector(dir, 0.6), dir, botC, "rocket");
+        tmfBotCooldowns.set(i, DEFS.rocket.cooldown + 0.4);
+      }
+    }
+  }
+
+  // ── Haunted bot weapon AI ─────────────────────────────────────────────────────
+  if (roundManager.mode.name === "Haunted") {
+    for (let i = 0; i < roundManager.bots.length; i++) {
+      const botC = roundManager.bots[i] as unknown as Controllable;
+      if (!botC.isIt || botC.isEliminated) continue;
+      const cd = hauntedBotCooldowns.get(i) ?? 0;
+      if (cd > 0) { hauntedBotCooldowns.set(i, cd - dt); continue; }
+
+      const cls = _getHauntedClass(botC); // bots always return "ghost"
+
+      // Find nearest surviving non-IT entity
+      let nearest: Controllable | null = null;
+      let nearestDist = Infinity;
+      for (const e of allEntities) {
+        if (e === botC || e.isIt || e.isEliminated) continue;
+        const d = botC.position.distanceTo(e.position);
+        if (d < nearestDist) { nearestDist = d; nearest = e; }
+      }
+      if (!nearest) continue;
+
+      const weapon = (roundManager.bots[i] as { weapon?: import("./weapon").WeaponSystem }).weapon;
+      if (!weapon) continue;
+      const origin = botC.position.clone().add(new THREE.Vector3(0, 1.1, 0));
+
+      if (cls === "ghost") {
+        // Ghost: dagger backstab — must be close and behind the target
+        if (nearestDist < 2.5) {
+          const toGhost   = botC.position.clone().sub(nearest.position).setY(0).normalize();
+          const targetFwd = new THREE.Vector3(-Math.sin(nearest.position.y), 0, -Math.cos(nearest.position.y));
+          // Check if victim is facing away (dot > 0 means we're behind them — relaxed check for bots)
+          const isBackstab = toGhost.dot(targetFwd) > -0.3;
+          if (isBackstab) {
+            const dir = nearest.position.clone().sub(origin).normalize();
+            weapon.fireAs(scene, origin.clone().addScaledVector(dir, 0.5), dir, botC, "dagger");
+            hauntedBotCooldowns.set(i, DEFS.dagger.cooldown + 0.2);
+          }
+        }
+      } else {
+        // Mask Killer: sword swing — direct elimination via onSwordHit callback
+        if (nearestDist < 3.2) {
+          const dir = nearest.position.clone().sub(origin).normalize();
+          weapon.fireAs(scene, origin.clone().addScaledVector(dir, 0.5), dir, botC, "sword");
+          hauntedBotCooldowns.set(i, DEFS.sword.cooldown + 0.15);
+        }
+      }
+    }
+  }
+
   // ── Hunter: E-key teleporter sabotage + trap-freeze ──────────────────────────
   const isHunterMode = roundManager.mode.name === "Hunter";
   if (isHunterMode) {
@@ -1541,6 +1630,16 @@ function gameLoop() {
             infectionHits.set(target, hits);
           }
         }
+      };
+    } else if (roundManager.mode.name === "Haunted") {
+      destroyTmfBars();
+      destroyInfBars();
+      resetWeaponCallbacks();
+      // Mask Killer sword: direct elimination on hit
+      weaponCallbacks.onSwordHit = (target: Controllable) => {
+        if (target.isIt || target.isEliminated) return 0;
+        target.setEliminated(true);
+        return 0;
       };
     } else {
       destroyTmfBars();
