@@ -103,30 +103,72 @@ export function buildHauntedMap(scene: THREE.Scene): MapResult {
   }
 
   // ── Iron fence perimeter ──────────────────────────────────────────────────
-  const FW = BOUNDARY * 2, FH = 2.2, FT = 0.4;
+  const FW = BOUNDARY * 2, FH = 5.5, FT = 0.5;
   wall(  0, -BOUNDARY, FW,      FH, FT, 0x1a1a1a);
   wall(  0,  BOUNDARY, FW,      FH, FT, 0x1a1a1a);
   wall(-BOUNDARY, 0,   FT, FH, FW,      0x1a1a1a);
   wall( BOUNDARY, 0,   FT, FH, FW,      0x1a1a1a);
 
-  // ── Central mausoleum ─────────────────────────────────────────────────────
-  // Hollow: 4 wall slabs + roof, doorways on N and S
-  const MX = 0, MZ = 0, MW = 10, MD = 10, MH = 6;
-  const doorW = 3.5; // wide enough for bots to pass through
-  const halfW = (MW - doorW) / 2;  // width of each wall slab
-  // N wall (two halves with gap) — each half is flush against the outer edge
-  wall(MX - MW / 2 + halfW / 2, MZ - MD / 2, halfW, MH, 0.5, 0x2a2420);
-  wall(MX + MW / 2 - halfW / 2, MZ - MD / 2, halfW, MH, 0.5, 0x2a2420);
-  // S wall (two halves with gap)
-  wall(MX - MW / 2 + halfW / 2, MZ + MD / 2, halfW, MH, 0.5, 0x2a2420);
-  wall(MX + MW / 2 - halfW / 2, MZ + MD / 2, halfW, MH, 0.5, 0x2a2420);
-  // E and W walls (solid)
-  wall(MX - MW / 2, MZ, 0.5, MH, MD, 0x2a2420);
-  wall(MX + MW / 2, MZ, 0.5, MH, MD, 0x2a2420);
-  // Roof as walkable platform
-  platform(MX, MZ, MW, MD, MH, 0x222018);
-  // Interior eerie lantern
-  lantern(MX, MZ, 1.8);
+  // ── Central Church ────────────────────────────────────────────────────────────
+  const STONE = 0x2d2820, STONE2 = 0x221e18;
+  const CW = 12, CD = 14, CH = 7;    // nave: width × depth × height
+  const doorW = 3.5;
+  const halfDW = (CW - doorW) / 2;   // 4.25 — wall slab each side of door
+
+  // Box with its bottom face at yBase (for elevated structures)
+  function wallAt(x: number, yBase: number, z: number, w: number, h: number, d: number, color: number, isWall = true) {
+    const m = add(new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshLambertMaterial({ color })));
+    m.position.set(x, yBase + h / 2, z);
+    m.castShadow = true; m.receiveShadow = true;
+    (isWall ? walls : colliders).push(new THREE.Box3().setFromObject(m));
+  }
+
+  // Nave walls (N/S have door gaps; E/W solid)
+  wall(-CW/2 + halfDW/2, -CD/2, halfDW, CH, 0.55, STONE);  // N left
+  wall( CW/2 - halfDW/2, -CD/2, halfDW, CH, 0.55, STONE);  // N right
+  wall(-CW/2 + halfDW/2,  CD/2, halfDW, CH, 0.55, STONE);  // S left
+  wall( CW/2 - halfDW/2,  CD/2, halfDW, CH, 0.55, STONE);  // S right
+  wall(-CW/2, 0, 0.55, CH, CD, STONE);                      // E wall
+  wall( CW/2, 0, 0.55, CH, CD, STONE);                      // W wall
+  // Arch lintels above doorways
+  wallAt(0, CH - 1.4, -CD/2, doorW + 0.3, 1.4, 0.6, STONE);
+  wallAt(0, CH - 1.4,  CD/2, doorW + 0.3, 1.4, 0.6, STONE);
+  // Gothic buttresses flanking E and W walls
+  for (const bz of [-5, 0, 5]) {
+    wallAt(-CW/2 - 0.55, 0, bz, 0.55, CH * 0.85, 1.4, STONE);
+    wallAt( CW/2 + 0.55, 0, bz, 0.55, CH * 0.85, 1.4, STONE);
+  }
+  // Nave roof — walkable platform
+  platform(0, 0, CW, CD, CH, STONE2);
+
+  // Bell tower atop the nave (centred)
+  const TW = 4.2, TD = 4.2, TH = 5;
+  wallAt( 0,    CH, -TD/2, TW,  TH, 0.5, STONE);  // N face
+  wallAt( 0,    CH,  TD/2, TW,  TH, 0.5, STONE);  // S face
+  wallAt(-TW/2, CH,  0,    0.5, TH, TD,  STONE);  // W face
+  wallAt( TW/2, CH,  0,    0.5, TH, TD,  STONE);  // E face
+  // Tower roof slab (walkable)
+  wallAt(0, CH + TH, 0, TW, 0.35, TD, STONE2, false);
+
+  // Steeple — 4-sided pyramid
+  const spire = add(new THREE.Mesh(
+    new THREE.CylinderGeometry(0, 2.0, 5.5, 4),
+    new THREE.MeshLambertMaterial({ color: 0x1a1210 }),
+  ));
+  spire.position.set(0, CH + TH + 0.35 + 2.75, 0);
+  spire.rotation.y = Math.PI / 4;
+
+  // Cross at the peak
+  const crossY = CH + TH + 0.35 + 5.5;
+  const vb = add(new THREE.Mesh(new THREE.BoxGeometry(0.2, 2.6, 0.2), new THREE.MeshLambertMaterial({ color: 0x3a2a18 })));
+  vb.position.set(0, crossY + 1.3, 0);
+  const hb = add(new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.2, 0.2), new THREE.MeshLambertMaterial({ color: 0x3a2a18 })));
+  hb.position.set(0, crossY + 1.8, 0);
+
+  // Interior lantern + warm orange glow
+  lantern(0, 0, 2.2);
+  const cLight = add(new THREE.PointLight(0xff8833, 1.8, 16));
+  cLight.position.set(0, 3.5, 0);
 
   // ── Burial mounds (low raised platforms) ─────────────────────────────────
   platform(-18, -14, 6, 3, 1.2, 0x181008);
@@ -157,15 +199,15 @@ export function buildHauntedMap(scene: THREE.Scene): MapResult {
 
   // ── Inner iron fence corridors (funnel approaches to mausoleum) ──────────
   // N/S approach flanks
-  wall(-14, -12, 0.3, 2.0, 10, 0x1e1e1e);
-  wall( 14, -12, 0.3, 2.0, 10, 0x1e1e1e);
-  wall(-14,  12, 0.3, 2.0, 10, 0x1e1e1e);
-  wall( 14,  12, 0.3, 2.0, 10, 0x1e1e1e);
-  // Short cross-stubs E/W of mausoleum doorways
-  wall(-10, -2, 4, 2.0, 0.3, 0x1e1e1e);
-  wall(-10,  2, 4, 2.0, 0.3, 0x1e1e1e);
-  wall( 10, -2, 4, 2.0, 0.3, 0x1e1e1e);
-  wall( 10,  2, 4, 2.0, 0.3, 0x1e1e1e);
+  wall(-14, -12, 0.3, 4.0, 10, 0x1e1e1e);
+  wall( 14, -12, 0.3, 4.0, 10, 0x1e1e1e);
+  wall(-14,  12, 0.3, 4.0, 10, 0x1e1e1e);
+  wall( 14,  12, 0.3, 4.0, 10, 0x1e1e1e);
+  // Short cross-stubs E/W of church doorways
+  wall(-10, -2, 4, 3.5, 0.3, 0x1e1e1e);
+  wall(-10,  2, 4, 3.5, 0.3, 0x1e1e1e);
+  wall( 10, -2, 4, 3.5, 0.3, 0x1e1e1e);
+  wall( 10,  2, 4, 3.5, 0.3, 0x1e1e1e);
 
   // ── Stone crypt fragments (L-walls in 4 mid-zones) ───────────────────────
   wall(-18, -20, 8, 3.5, 0.5, 0x2c2824);
@@ -210,14 +252,14 @@ export function buildHauntedMap(scene: THREE.Scene): MapResult {
   wall( 10,  6,  0.4, 3.0,  8, 0x2c2824);
 
   // ── Outer broken ring walls ───────────────────────────────────────────────────
-  wall(-28,   0, 0.4, 3.0, 12, 0x2a2420);
-  wall( 28,   0, 0.4, 3.0, 12, 0x2a2420);
-  wall(  0, -28, 12,  3.0, 0.4, 0x2a2420);
-  wall(  0,  28, 12,  3.0, 0.4, 0x2a2420);
-  wall(-28, -10, 0.4, 3.0,  8, 0x2a2420);
-  wall(-28,  10, 0.4, 3.0,  8, 0x2a2420);
-  wall( 28, -10, 0.4, 3.0,  8, 0x2a2420);
-  wall( 28,  10, 0.4, 3.0,  8, 0x2a2420);
+  wall(-28,   0, 0.4, 4.5, 12, 0x2a2420);
+  wall( 28,   0, 0.4, 4.5, 12, 0x2a2420);
+  wall(  0, -28, 12,  4.5, 0.4, 0x2a2420);
+  wall(  0,  28, 12,  4.5, 0.4, 0x2a2420);
+  wall(-28, -10, 0.4, 4.5,  8, 0x2a2420);
+  wall(-28,  10, 0.4, 4.5,  8, 0x2a2420);
+  wall( 28, -10, 0.4, 4.5,  8, 0x2a2420);
+  wall( 28,  10, 0.4, 4.5,  8, 0x2a2420);
 
   // ── Extra low tomb slabs (mid-map barriers) ────────────────────────────────────
   for (const [tx, tz, tr] of [
