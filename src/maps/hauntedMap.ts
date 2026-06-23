@@ -128,11 +128,100 @@ export function buildHauntedMap(scene: THREE.Scene): MapResult {
   wall( CW/2 - halfDW/2, -CD/2, halfDW, CH, 0.55, STONE);  // N right
   wall(-CW/2 + halfDW/2,  CD/2, halfDW, CH, 0.55, STONE);  // S left
   wall( CW/2 - halfDW/2,  CD/2, halfDW, CH, 0.55, STONE);  // S right
-  wall(-CW/2, 0, 0.55, CH, CD, STONE);                      // E wall
-  wall( CW/2, 0, 0.55, CH, CD, STONE);                      // W wall
+  // E and W walls — broken walk-through window at z=0, decorative windows at z=±4.2
+  const GAP_Z   = 0.95;  // half-width of broken window opening in z (total = 1.9u)
+  const GAP_Y   = 1.9;   // passable height of broken window
+  const T       = 0.55;  // wall thickness
+  const BOARD_C = 0x3a2c1a, GLASS_C = 0x1a2a44, FRAME_C = 0x2a1e10;
+
+  // Visual-only mesh (no collision)
+  function vis(x: number, y: number, z: number, w: number, h: number, d: number, color: number, transparent = false, opacity = 1.0) {
+    const m = add(new THREE.Mesh(
+      new THREE.BoxGeometry(w, h, d),
+      transparent
+        ? new THREE.MeshBasicMaterial({ color, transparent: true, opacity })
+        : new THREE.MeshLambertMaterial({ color }),
+    ));
+    m.position.set(x, y, z);
+    return m;
+  }
+
+  for (const wx of [-CW / 2, CW / 2]) {
+    const segLen = CD / 2 - GAP_Z;         // 6.05 — length of each solid section
+    const segCZ  = (CD / 2 + GAP_Z) / 2;  // 3.975 — centre z of each solid section
+
+    // Solid sections flanking the gap
+    wall(wx, -segCZ, T, CH, segLen, STONE);
+    wall(wx,  segCZ, T, CH, segLen, STONE);
+    // Upper strip above the broken window (y: GAP_Y → CH)
+    wallAt(wx, GAP_Y, 0, T, CH - GAP_Y, GAP_Z * 2, STONE);
+
+    // ── Decorative intact windows at z = ±4.2 ──────────────────────────────
+    const gx = wx + (wx < 0 ? T / 2 - 0.06 : -(T / 2 - 0.06));  // inner wall face
+    for (const wz of [-4.2, 4.2]) {
+      vis(gx,  3.00, wz, 0.08, 2.00, 1.35, GLASS_C, true, 0.70);  // glass pane
+      vis(wx,  4.06, wz, T + 0.1, 0.18, 1.55, FRAME_C);            // top rail
+      vis(wx,  1.94, wz, T + 0.1, 0.18, 1.55, FRAME_C);            // bottom rail
+      vis(wx,  3.00, wz - 0.75, T + 0.1, 2.38, 0.16, FRAME_C);    // left post
+      vis(wx,  3.00, wz + 0.75, T + 0.1, 2.38, 0.16, FRAME_C);    // right post
+      vis(wx,  3.00, wz, T + 0.1, 0.12, 1.35, FRAME_C);            // cross-bar
+    }
+
+    // ── Broken window frame remnants at z = 0 ──────────────────────────────
+    vis(wx, GAP_Y + 0.13, 0,              T + 0.1, 0.26, GAP_Z * 2 + 0.1, FRAME_C); // top jamb
+    vis(wx, GAP_Y / 2,    -(GAP_Z + 0.05), T + 0.1, GAP_Y, 0.15, FRAME_C);          // left jamb
+    vis(wx, GAP_Y / 2,      GAP_Z + 0.05,  T + 0.1, GAP_Y, 0.15, FRAME_C);          // right jamb
+
+    // Boards nailed across the outside face
+    const ox = wx + (wx < 0 ? -(T / 2 + 0.09) : T / 2 + 0.09);
+    ([
+      [0.55,  0.38], [1.35, -0.30], [0.92, 0.12],
+    ] as [number, number][]).forEach(([by, rot]) => {
+      const b = add(new THREE.Mesh(
+        new THREE.BoxGeometry(0.16, 0.11, GAP_Z * 2 + 0.3),
+        new THREE.MeshLambertMaterial({ color: BOARD_C }),
+      ));
+      b.position.set(ox, by, 0);
+      b.rotation.z = rot;
+    });
+    // Broken glass shards
+    ([[-0.45, 0.25], [0.32, 1.38], [0.05, 0.88]] as [number, number][]).forEach(([sz, sy]) => {
+      const s = add(new THREE.Mesh(
+        new THREE.BoxGeometry(0.07, 0.28, 0.15),
+        new THREE.MeshBasicMaterial({ color: 0x88aacc, transparent: true, opacity: 0.55 }),
+      ));
+      s.position.set(ox, sy, sz);
+      s.rotation.z = sz * 1.4;
+    });
+  }
+
   // Arch lintels above doorways
-  wallAt(0, CH - 1.4, -CD/2, doorW + 0.3, 1.4, 0.6, STONE);
-  wallAt(0, CH - 1.4,  CD/2, doorW + 0.3, 1.4, 0.6, STONE);
+  wallAt(0, CH - 1.4, -CD / 2, doorW + 0.3, 1.4, 0.6, STONE);
+  wallAt(0, CH - 1.4,  CD / 2, doorW + 0.3, 1.4, 0.6, STONE);
+
+  // ── Door in N opening (opens outward, hinged left) ─────────────────────────
+  vis(-doorW / 2 - 0.16, CH / 2, -CD / 2, 0.32, CH, 0.42, FRAME_C);  // left post
+  vis( doorW / 2 + 0.16, CH / 2, -CD / 2, 0.32, CH, 0.42, FRAME_C);  // right post
+
+  const doorH   = CH - 1.5;
+  const doorGrp = add(new THREE.Group());
+  doorGrp.position.set(-doorW / 2, 0, -CD / 2);
+  doorGrp.rotation.y = Math.PI / 5;  // ≈ 36° open, swings outward
+
+  const doorPanel = new THREE.Mesh(
+    new THREE.BoxGeometry(doorW - 0.15, doorH, 0.12),
+    new THREE.MeshLambertMaterial({ color: 0x3a2812 }),
+  );
+  doorPanel.position.set((doorW - 0.15) / 2, doorH / 2, 0);
+  doorGrp.add(doorPanel);
+  for (let py = 0.35; py < doorH; py += 0.75) {
+    const plank = new THREE.Mesh(
+      new THREE.BoxGeometry(doorW - 0.25, 0.06, 0.14),
+      new THREE.MeshLambertMaterial({ color: 0x2e2010 }),
+    );
+    plank.position.set((doorW - 0.15) / 2, py, -0.13);
+    doorGrp.add(plank);
+  }
   // Gothic buttresses flanking E and W walls
   for (const bz of [-5, 0, 5]) {
     wallAt(-CW/2 - 0.55, 0, bz, 0.55, CH * 0.85, 1.4, STONE);

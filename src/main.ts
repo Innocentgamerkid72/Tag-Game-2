@@ -1692,8 +1692,9 @@ function gameLoop() {
   }
 
   // Cross-player tag detection (local ↔ remote) — handled here, not by roundManager
+  // Haunted: no proximity tagging; kills happen via weapon system only
   const lp = player as unknown as Controllable;
-  if (!lp.isEliminated && lp.tagImmunity <= 0) {
+  if (!lp.isEliminated && lp.tagImmunity <= 0 && roundManager.mode.name !== "Haunted") {
     for (const [id, rp] of remotePlayers) {
       if (rp.isEliminated) continue;
       if (lp.position.distanceTo(rp.position) > 1.5) continue;
