@@ -11,7 +11,7 @@ export function buildHauntedMap(scene: THREE.Scene): MapResult {
   const _objs: THREE.Object3D[] = [];
   function add<T extends THREE.Object3D>(o: T): T { scene.add(o); _objs.push(o); return o; }
 
-  scene.fog = new THREE.FogExp2(0x04020a, 0.20);
+  scene.fog = new THREE.FogExp2(0x0a0616, 0.048);
 
   // Ground — dark earth
   const ground = add(new THREE.Mesh(
@@ -21,8 +21,8 @@ export function buildHauntedMap(scene: THREE.Scene): MapResult {
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
 
-  // Dim ambient — barely lit
-  add(new THREE.AmbientLight(0x2a1a3a, 0.6));
+  // Dim moonlit ambient — dark purple, just enough to outline silhouettes
+  add(new THREE.AmbientLight(0x3a2550, 1.1));
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
   function wall(x: number, z: number, w: number, h: number, d: number, color: number) {
@@ -47,22 +47,41 @@ export function buildHauntedMap(scene: THREE.Scene): MapResult {
     colliders.push(new THREE.Box3().setFromObject(top));
   }
 
-  function lantern(x: number, z: number, y = 2.2) {
-    // Post
+  // Outdoor street lamppost — tall iron post with a glowing lamp head
+  function lantern(x: number, z: number, y = 4.5) {
+    // Weighted base
+    const base = add(new THREE.Mesh(
+      new THREE.CylinderGeometry(0.14, 0.18, 0.22, 6),
+      new THREE.MeshLambertMaterial({ color: 0x1c1c1c }),
+    ));
+    base.position.set(x, 0.11, z);
+    // Main post
     const post = add(new THREE.Mesh(
-      new THREE.CylinderGeometry(0.06, 0.06, y, 6),
-      new THREE.MeshLambertMaterial({ color: 0x2a2a2a }),
+      new THREE.CylinderGeometry(0.055, 0.07, y, 6),
+      new THREE.MeshLambertMaterial({ color: 0x222222 }),
     ));
     post.position.set(x, y / 2, z);
-    // Light box
-    const box = add(new THREE.Mesh(
-      new THREE.BoxGeometry(0.3, 0.3, 0.3),
-      new THREE.MeshBasicMaterial({ color: 0xffcc44 }),
+    // Short arm angled outward from the top
+    const arm = add(new THREE.Mesh(
+      new THREE.BoxGeometry(0.06, 0.06, 0.65),
+      new THREE.MeshLambertMaterial({ color: 0x222222 }),
     ));
-    box.position.set(x, y, z);
-    // Point light
-    const light = add(new THREE.PointLight(0xff9922, 1.4, 10));
-    light.position.set(x, y + 0.1, z);
+    arm.position.set(x, y, z + 0.32);
+    // Lamp housing (glowing)
+    const lamp = add(new THREE.Mesh(
+      new THREE.BoxGeometry(0.36, 0.30, 0.36),
+      new THREE.MeshBasicMaterial({ color: 0xffdd55 }),
+    ));
+    lamp.position.set(x, y - 0.22, z + 0.64);
+    // Cap shade above lamp
+    const shade = add(new THREE.Mesh(
+      new THREE.CylinderGeometry(0.26, 0.26, 0.09, 6),
+      new THREE.MeshLambertMaterial({ color: 0x1c1c1c }),
+    ));
+    shade.position.set(x, y - 0.05, z + 0.64);
+    // Strong warm point light
+    const light = add(new THREE.PointLight(0xffaa44, 3.2, 22));
+    light.position.set(x, y - 0.3, z + 0.64);
   }
 
   /** Dead tree: trunk + bare branching arms. */
@@ -256,7 +275,7 @@ export function buildHauntedMap(scene: THREE.Scene): MapResult {
 
   // Interior lantern + warm orange glow
   lantern(0, 0, 2.2);
-  const cLight = add(new THREE.PointLight(0xff8833, 1.8, 16));
+  const cLight = add(new THREE.PointLight(0xff8833, 2.5, 20));
   cLight.position.set(0, 3.5, 0);
 
   // ── Burial mounds (low raised platforms) ─────────────────────────────────
@@ -367,15 +386,25 @@ export function buildHauntedMap(scene: THREE.Scene): MapResult {
   deadTree(-10,  30, 8);
   deadTree( 10, -30, 7);
 
-  // ── Lanterns (atmosphere) ─────────────────────────────────────────────────
+  // ── Lampposts — mid-map ring ──────────────────────────────────────────────
   lantern(-16,  -2);
   lantern( 16,   2);
   lantern( -2,  16);
   lantern(  2, -16);
-  lantern(-28,  28, 1.8);
-  lantern( 28, -28, 1.8);
-  lantern(-20, -20, 1.6);
-  lantern( 20,  20, 1.6);
+  lantern(-28,  28);
+  lantern( 28, -28);
+  lantern(-20, -20);
+  lantern( 20,  20);
+
+  // ── Lampposts flanking the church ─────────────────────────────────────────
+  lantern(-2.5, -10.5);   lantern( 2.5, -10.5);   // N approach
+  lantern(-2.5,  10.5);   lantern( 2.5,  10.5);   // S approach
+  lantern(-9.5,   0);     lantern( 9.5,   0);      // E and W sides of nave
+
+  // ── Lampposts on outer corridors ─────────────────────────────────────────
+  lantern(-22,  -5);      lantern( 22,   5);       // diagonal outer
+  lantern(  5, -22);      lantern( -5,  22);       // diagonal outer
+  lantern(-22,  12);      lantern( 22, -12);       // far flanks
 
   // ── Mid-corridor L-walls (blind-corner ambush spots in each quadrant) ──────
   wall(-5, -13, 7, 3.0, 0.4, 0x28241e);
@@ -402,7 +431,7 @@ export function buildHauntedMap(scene: THREE.Scene): MapResult {
     boundary: BOUNDARY,
     botBoundary: 30,
     gravity: -28,
-    background: 0x04030a,
+    background: 0x0a0616,
     dispose() {
       for (const o of _objs) {
         scene.remove(o);
