@@ -80,7 +80,7 @@ export function buildHauntedMap(scene: THREE.Scene): MapResult {
     ));
     shade.position.set(x, y - 0.05, z + 0.64);
     // Strong warm point light
-    const light = add(new THREE.PointLight(0xffaa44, 3.68, 22));
+    const light = add(new THREE.PointLight(0xffaa44, 5.336, 22));
     light.position.set(x, y - 0.3, z + 0.64);
   }
 
