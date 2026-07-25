@@ -82,6 +82,12 @@ export function buildHauntedMap(scene: THREE.Scene): MapResult {
     // Strong warm point light
     const light = add(new THREE.PointLight(0xffaa44, 5.336, 22));
     light.position.set(x, y - 0.3, z + 0.64);
+
+    // Collider so players (and the FP camera) can't walk into the post/lamp head
+    walls.push(new THREE.Box3(
+      new THREE.Vector3(x - 0.2, 0, z - 0.2),
+      new THREE.Vector3(x + 0.2, y + 0.2, z + 0.95),
+    ));
   }
 
   /** Dead tree: trunk + bare branching arms. */
